@@ -47,7 +47,10 @@
   .chip:hover { border-color: var(--link); } .chip.star { color: #fde047; }
   .footer { color: var(--muted); font-size: 12px; margin-top: 10px; display: flex; gap: 6px; align-items: center; }
   .footer::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(135deg,#22c55e,#0ea5e9); display: inline-block; }
-  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; max-width: 640px; }
+  .buttons { display: grid; gap: 8px; margin-top: 8px; max-width: 560px; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btnrow.grid2 { display: grid; grid-template-columns: 1fr 1fr; }
+  .btnrow.grid2 .btn { justify-content: center; }
   .btn { border: 0; border-radius: 4px; padding: 8px 14px; color: #fff; font: inherit; font-weight: 500; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
   .btn.p { background: var(--btn-primary); } .btn.s { background: var(--btn-secondary); } .btn.d { background: var(--btn-danger); } .btn.l { background: var(--btn-link); }
   .btn:active { filter: brightness(.9); }
@@ -100,6 +103,11 @@
       <label class="opt"><input type="checkbox" id="optNote" checked> แสดงหมายเหตุจากขนส่ง</label>
       <label class="opt"><input type="checkbox" id="optFooter" checked> แสดง footer</label>
       <label class="opt"><input type="checkbox" id="optButtons" checked> แสดงปุ่ม 4 ปุ่ม</label>
+      <label class="opt"><input type="checkbox" id="optUrgency" checked> สีแถบซ้ายตามความเร่งด่วน (เขียว → เหลือง → แดง)</label>
+      <div class="hint">Discord ให้แถบซ้ายเป็นสีเดียว ทำ gradient ไม่ได้ · แต่เปลี่ยนสีตามวันที่เหลือได้</div>
+      <div style="margin-top:8px"><div class="hint">การจัดปุ่ม (Discord กำหนดความกว้างปุ่มเองตามข้อความ)</div>
+      <select id="btnLayout"><option value="2x2">2 แถว × 2 ปุ่ม (พอดีการ์ด)</option><option value="1x4">1 แถว × 4 ปุ่ม</option></select></div>
+      <div style="margin-top:8px"><div class="hint">วันนี้ (จำลอง) — ลองเลื่อนดูสีและนับถอยหลัง</div><input type="date" id="today" value="2026-09-15"></div>
       <div class="row2" style="margin-top:8px">
         <div><div class="hint">เลขต่อแถว</div><input type="number" id="perRow" min="3" max="10" value="5"></div>
         <div><div class="hint">สีแถบซ้าย</div><input type="color" id="accent" value="#22c55e"></div>
@@ -134,15 +142,18 @@
       · ตกแต่งได้แค่ title, description, fields (ชื่อ+ค่า, วางเรียง 3 ช่องต่อแถวเมื่อ inline), footer, สีแถบซ้าย 1 สี, รูป thumbnail/image<br>
       · ข้อความใช้ markdown พื้นฐาน: <b>ตัวหนา</b>, <code>โค้ด</code>, ลิงก์ · ไม่มีสีตัวอักษร ไม่มีตาราง ไม่มีชิปสี · "ชิป" ในนี้คือ inline code<br>
       · field value ยาวได้ 1024 ตัวอักษร · ทั้ง embed 6000 · ปุ่มสูงสุด 5 ปุ่มต่อแถว 5 แถว · ปุ่มลิงก์ต้องเป็นสีเทาเสมอ<br>
-      · กดชิปเลขในนี้ = คัดลอกเลข (ใน Discord จริงกดคัดลอกไม่ได้ แต่กดค้าง/ลากได้)
+      · กดชิปเลขในนี้ = คัดลอกเลข (ใน Discord จริงกดคัดลอกไม่ได้ แต่กดค้าง/ลากได้)<br>
+      · <b>แถบซ้ายเป็นสีเดียว</b> gradient ทำไม่ได้ · ปุ่มกว้างตามข้อความ กำหนดความกว้างไม่ได้ แต่แยกได้สูงสุด 5 แถว<br>
+      · <b>ตัวแก้ file id อัตโนมัติทำไม่ได้</b> เพราะหน้าขนส่งอยู่หลัง WAF ที่ปฏิเสธทุก client ที่ไม่ใช่เบราว์เซอร์ (ADR-0003) — แต่หลักฐานบ่งว่าขนส่งอัปโหลดทับไฟล์เดิม จึงน่าจะไม่ต้องแก้เลย รอยืนยัน จ. 21 ก.ย.
     </div>
   </main>
 </div>
 
 <div class="modal-bg" id="modalBg"><div class="modal">
   <h3>เพิ่มเลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)</h3>
-  <div class="hint">เลขทะเบียน 1–9999</div>
-  <input type="text" id="modalNum" placeholder="เช่น 5555" maxlength="4">
+  <div class="hint">ใส่ได้หลายเลข คั่นด้วยจุลภาค ช่องว่าง หรือขึ้นบรรทัดใหม่ · 1–9999</div>
+  <textarea id="modalNum" rows="3" placeholder="เช่น 5555, 6000 6464" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
+  <div class="hint" style="margin-top:6px">bot จะเช็คให้: ซ้ำใน wishlist · มีคนในเซิร์ฟเวอร์เล็งไว้แล้ว · เปิดจองวันไหนในสัปดาห์นี้ · ช่วงนั้นผ่านไปแล้วหรือยัง<br><b style="color:#f59e0b">เช็คไม่ได้:</b> ถูกจองในระบบขนส่งแล้วหรือยัง (ต้องล็อกอิน ThaID ดูเอง)</div>
   <div class="actions"><button class="btn s" id="modalCancel">ยกเลิก</button><button class="btn p" id="modalOk">เพิ่ม</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
@@ -178,7 +189,7 @@ function sample() {
     entry: { prefix, from, to, openDate: '2026-09-18', registerBy: '2026-10-18', vehicle: 'รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)', note: 'จดทะเบียนถึงเลข 8ขจ-1028' },
     numbers: [...reasons.keys()], reasons,
     groups: [...groups.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([reason, numbers]) => ({ reason, numbers })),
-    today: '2026-09-15',
+    today: $('today').value || '2026-09-15',
   };
 }
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
@@ -198,10 +209,13 @@ function chipsText(prefix, nums, reasons) {
 function buildEmbed() {
   const s = sample(); const e = s.entry; const kind = $('kind').value; const v = $('variant').value;
   const opt = (id) => $(id).checked;
-  const color = parseInt($('accent').value.slice(1), 16);
+  const untilOpen = daysBetween(s.today, e.openDate);
+  // สีเดียวต่อ embed (ข้อจำกัด Discord) → ใช้ "สีตามความเร่งด่วน" แทน gradient
+  const urgency = untilOpen < 0 ? 0x6b7280 : untilOpen === 0 ? 0xef4444 : untilOpen <= 2 ? 0xf59e0b : 0x22c55e;
+  const color = opt('optUrgency') ? urgency : parseInt($('accent').value.slice(1), 16);
   const footer = opt('optFooter') ? { text: 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID' } : undefined;
   const until = daysBetween(s.today, e.openDate);
-  const countdown = opt('optCountdown') ? (until === 0 ? ' · วันนี้' : ` · อีก ${until} วัน`) : ''; // title ไม่รองรับ markdown
+  const countdown = opt('optCountdown') ? (until === 0 ? ' · วันนี้!' : until < 0 ? ' · ผ่านไปแล้ว' : ` · อีก ${until} วัน`) : ''; // title ไม่รองรับ markdown
   const range = `**${e.prefix}** ${e.from} – ${e.to}`;
   const cnt = (n) => (opt('optCount') ? ` (${n})` : '');
   const noteField = opt('optNote') && e.note ? [{ name: 'หมายเหตุจากขนส่ง', value: e.note }] : [];
@@ -267,21 +281,25 @@ function render() {
   if (embed.footer) html += `<div class="footer">${esc(embed.footer.text)}</div>`;
   $('embed').innerHTML = html;
   $('buttons').style.display = $('optButtons').checked ? '' : 'none';
-  $('json').textContent = JSON.stringify({ embeds: [embed], components: $('optButtons').checked ? [{ type: 1, components: [
-    { type: 2, style: 1, custom_id: 'add_number', label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
-    { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } },
-    { type: 2, style: 4, custom_id: 'clear_history', label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
-    { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } ] }] : [] }, null, 2);
+  renderButtons();
+  $('json').textContent = JSON.stringify({ embeds: [embed], components: $('optButtons').checked ? buttonRows().map((row) => ({ type: 1, components: row.map((b) => b.json) })) : [] }, null, 2);
   const chars = JSON.stringify(embed).length;
   $('json').textContent += `\n\n// ความยาวรวม ~${chars} ตัวอักษร (ลิมิต 6000)`;
 }
 
 // ---- ปุ่ม + interaction จำลอง ----
-$('buttons').innerHTML = `
-  <button class="btn p" data-act="add">🔢 กรอกเลขที่อยากจอง</button>
-  <button class="btn s" data-act="history">📜 ดูประวัติแชต</button>
-  <button class="btn d" data-act="clear">🧹 ลบประวัติแชตเก่า</button>
-  <a class="btn l" href="https://reserve.dlt.go.th/reserve/v2/?menu=resv_m" target="_blank" rel="noopener">🌐 เข้าสู่เว็บไซต์ ↗</a>`;
+const BTNS = [
+  { cls: 'p', act: 'add', label: '🔢 กรอกเลขที่อยากจอง', json: { type: 2, style: 1, custom_id: 'add_number', label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } } },
+  { cls: 's', act: 'history', label: '📜 ดูประวัติแชต', json: { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } } },
+  { cls: 'd', act: 'clear', label: '🧹 ลบประวัติแชตเก่า', json: { type: 2, style: 4, custom_id: 'clear_history', label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } } },
+  { cls: 'l', href: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: '🌐 เข้าสู่เว็บไซต์ ↗', json: { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } },
+];
+function buttonRows() { return $('btnLayout').value === '2x2' ? [BTNS.slice(0, 2), BTNS.slice(2)] : [BTNS]; }
+function renderButtons() {
+  $('buttons').innerHTML = buttonRows().map((row) => `<div class="btnrow${$('btnLayout').value === '2x2' ? ' grid2' : ''}">` + row.map((b) => b.href
+    ? `<a class="btn ${b.cls}" href="${b.href}" target="_blank" rel="noopener">${b.label}</a>`
+    : `<button class="btn ${b.cls}" data-act="${b.act}">${b.label}</button>`).join('') + '</div>').join('');
+}
 const toast = (t) => { $('toast').textContent = t; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 1400); };
 const ephemeral = (t) => { $('ephemeral').innerHTML = `<div class="ephemeral"><small>👁️ เห็นเฉพาะคุณ · ปิดข้อความนี้ได้</small>${t}</div>`; };
 const describe = (k) => { const [kind, ...r] = k.split(':'); return { match: `🎯 ${fmt(r[0], false)} · ${r[1]} ${r[2]}`, open: `⏰ เตือนก่อนเปิด ${r[1]}`, t10: `🚦 ปิง 10 นาทีก่อนเปิด ${r[1]}` }[kind] ?? k; };
@@ -293,13 +311,32 @@ document.addEventListener('click', (ev) => {
   if (b.dataset.act === 'clear') ephemeral('ลบข้อความเก่าของ bot ไป 3 ข้อความ (เก็บข้อความนี้ไว้)');
 });
 $('modalCancel').onclick = () => ($('modalBg').style.display = 'none');
+// ตารางสัปดาห์นี้ (รถเก๋ง) ไว้เช็คว่าเลขที่กรอกเปิดวันไหน · และ "เจ้าของ" จำลองว่าคนอื่นในเซิร์ฟเวอร์เล็งไว้แล้ว
+const WEEK = [
+  { prefix: '8ขจ', from: 8001, to: 9999, openDate: '2026-09-14' }, { prefix: '8ขฉ', from: 1, to: 2000, openDate: '2026-09-15' },
+  { prefix: '8ขฉ', from: 2001, to: 3500, openDate: '2026-09-16' }, { prefix: '8ขฉ', from: 3501, to: 5000, openDate: '2026-09-17' },
+  { prefix: '8ขฉ', from: 5001, to: 6500, openDate: '2026-09-18' },
+];
+const CLAIMED = { 5151: 'somchai', 9999: 'nok' };
+function checkNumber(n, list, today) {
+  if (!(Number.isInteger(n) && n >= 1 && n <= 9999)) return { icon: '❌', text: `<b>${n || '?'}</b> ไม่ใช่เลขทะเบียน 1–9999`, add: false };
+  if (list.includes(n)) return { icon: 'ℹ️', text: `<b>${n}</b> อยู่ใน wishlist ของคุณอยู่แล้ว`, add: false };
+  if (CLAIMED[n]) return { icon: '👤', text: `<b>${n}</b> @${CLAIMED[n]} เล็งไว้ก่อนแล้วในเซิร์ฟเวอร์นี้ — เพิ่มให้ด้วย แต่รู้ไว้ว่ามีคนแย่ง`, add: true };
+  const slot = WEEK.find((w) => n >= w.from && n <= w.to);
+  if (!slot) return { icon: '🔭', text: `<b>${n}</b> ยังไม่อยู่ในตารางสัปดาห์นี้ · เพิ่มแล้ว จะแจ้งเมื่อถึงคิว`, add: true };
+  const d = daysBetween(today, slot.openDate);
+  if (d < 0) return { icon: '⏪', text: `<b>${n}</b> ช่วง ${slot.prefix} ${slot.from}–${slot.to} เปิดไปแล้วเมื่อ ${fmt(slot.openDate)} (น่าจะถูกจองแล้ว) · เพิ่มไว้เผื่อรอบหน้า`, add: true };
+  if (d === 0) return { icon: '🔥', text: `<b>${n}</b> เปิดจอง<b>วันนี้</b> ${slot.prefix} 10:00–16:00 น. · เพิ่มแล้ว รีบเลย`, add: true };
+  return { icon: '✅', text: `<b>${n}</b> เพิ่มแล้ว · จะเปิดจอง ${fmt(slot.openDate)} (${slot.prefix}) อีก ${d} วัน`, add: true };
+}
 $('modalOk').onclick = () => {
-  const n = +$('modalNum').value; $('modalBg').style.display = 'none';
-  if (!(n >= 1 && n <= 9999)) return ephemeral(`❌ "${$('modalNum').value}" ไม่ใช่เลขทะเบียน 1–9999`);
-  const list = $('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean);
-  if (list.includes(n)) return ephemeral(`ℹ️ เลข <b>${n}</b> อยู่ใน wishlist อยู่แล้ว`);
-  $('wanted').value = [...list, n].sort((a, b) => a - b).join(', '); render();
-  ephemeral(`✅ เพิ่มเลข <b>${n}</b> ลง wishlist แล้ว (ทั้งหมด ${list.length + 1} เลข) · จะแจ้งเมื่อเลขนี้เปิดจอง — การจองยังต้องทำเองผ่าน ThaID`);
+  $('modalBg').style.display = 'none';
+  const nums = [...new Set($('modalNum').value.split(/[\s,]+/).filter(Boolean).map(Number))];
+  if (!nums.length) return ephemeral('❌ ยังไม่ได้ใส่เลข');
+  let list = $('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean);
+  const results = nums.map((n) => { const r = checkNumber(n, list, $('today').value); if (r.add) list = [...list, n]; return r; });
+  $('wanted').value = [...new Set(list)].sort((a, b) => a - b).join(', '); render();
+  ephemeral(`<b>ผลการเพิ่ม ${nums.length} เลข</b> (wishlist ตอนนี้ ${list.length} เลข)<br>${results.map((r) => `${r.icon} ${r.text}`).join('<br>')}<br><small>การจองยังต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง</small>`);
 };
 document.querySelectorAll('aside input, aside select').forEach((el) => el.addEventListener('input', render));
 render();
