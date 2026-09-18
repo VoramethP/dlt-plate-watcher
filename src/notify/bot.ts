@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, embedToText, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, shareRow, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, panelRows, embedToText, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, shareRow, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -55,7 +55,7 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
     if (!opts.panel) return;
     const embed = await opts.panel();
     if (panelId) await target.messages.delete(panelId).catch(() => undefined);
-    const msg = await target.send({ embeds: [embed], components: commandRows() });
+    const msg = await target.send({ embeds: [embed], components: panelRows() });
     panelId = msg.id;
     await pinQuietly(msg, log);
   };

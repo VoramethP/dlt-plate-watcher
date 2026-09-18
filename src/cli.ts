@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { loadConfig } from './config.js';
-import { loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
+import { isStale, loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
 import { createBotNotifier, type BotNotifier } from './notify/bot.js';
 import { COMMAND } from './notify/actions.js';
 import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed, wishlistEmbed } from './notify/discord.js';
@@ -51,6 +51,7 @@ const env: Env = {
 };
 
 const startedAt = new Date();
+let lastCheckAt: Date | undefined;
 
 /** ข้อความของคำสั่งแต่ละตัว (ใช้ทั้งใน CLI และปุ่มลัดบน Discord) */
 function scheduleText(s: Awaited<ReturnType<typeof loadSchedule>>): string {
@@ -86,8 +87,14 @@ async function connectNotifier(): Promise<Notifier | undefined> {
       },
       panel: async () => {
         const c = await getConfig();
+        const today = todayTH();
         const s = await loadSchedule(c.scheduleFileId).catch(() => null);
-        return panelEmbed({ wishlistCount: c.wishlist.numbers.length, version: s?.version ?? 'โหลดไม่ได้' });
+        return panelEmbed({
+          config: c, today, startedAt, lastCheckAt, version: s?.version,
+          entries: s ? s.entries.filter((e) => e.vehicleType === c.vehicleType) : [],
+          matches: s ? matchSchedule(s.entries, c) : [],
+          stale: s ? isStale(s, today) : false,
+        });
       },
       commands: {
         [COMMAND.schedule]: async () => {
@@ -99,7 +106,7 @@ async function connectNotifier(): Promise<Notifier | undefined> {
           const matches = matchSchedule((await loadSchedule(c.scheduleFileId)).entries, c);
           return matches.length ? { embeds: matches.map(matchEmbed) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 เพิ่มเลขได้จากข้อความแจ้งเตือน';
         },
-        [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
+        [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); lastCheckAt = new Date(); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
         [COMMAND.status]: async () => {
           const c = await getConfig();
           const today = todayTH();
@@ -168,6 +175,7 @@ async function main() {
           const config = await getConfig();
           if (minutes >= 8 * 60 && checkedDay !== day) {
             await runCheck(config, env);
+            lastCheckAt = new Date();
             checkedDay = day;
           }
           if (minutes >= 9 * 60 + 50 && pingedDay !== day) {

@@ -84,7 +84,7 @@
         <option value="deadline">⚠️ เตือนหมดเขตจดทะเบียน</option>
         <option value="schedule">📅 ตารางรอบใหม่</option>
         <option value="stale">🗓️ ตารางหมดอายุ</option>
-        <option value="panel">🛠️ แผงควบคุม (ปุ่มลัดคำสั่ง)</option>
+        <option value="panel">🏠 landing panel (แผงหลัก)</option>
       </select>
     </fieldset>
 
@@ -262,12 +262,21 @@ function buildEmbed() {
       { name: 'รถเก๋ง / กระบะ 4 ประตู', value: 'จ. 14 → **8ขจ** 8001–9999\nอ. 15 → **8ขฉ** 1–2000\nพ. 16 → **8ขฉ** 2001–3500\nพฤ. 17 → **8ขฉ** 3501–5000\nศ. 18 → **8ขฉ** 5001–6500' + (v === 'v1' ? '' : '  ← มีเลขที่เล็งไว้ 🎯') },
       { name: 'รถตู้', value: 'จ.–ศ. → **1นฎ** 2801–3300', inline: true }, { name: 'กระบะบรรทุก', value: 'จ.–ศ. → **4ฒฐ** 6601–7600', inline: true },
     ], footer };
-  if (kind === 'panel') return { title: '🛠️ แผงควบคุม dlt-plate-watcher', color: 0x3b82f6,
-    description: 'กดปุ่มด้านล่างแทนการพิมพ์คำสั่งในเทอร์มินัล · คำตอบเห็นเฉพาะคุณ',
-    fields: [
-      { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule`', inline: true }, { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match`', inline: true }, { name: '🔄 เช็คตอนนี้', value: '= `npm run check`', inline: true },
-      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true }, { name: '❓ คู่มือ', value: 'ทุกปุ่มทำอะไร ขยายความจากการ์ด', inline: true }, { name: 'ตอนนี้', value: `wishlist ${[...sample().numbers].length ? $('wanted').value.split(',').length : 0} เลข · ตารางเวอร์ชัน 14 ก.ย. 08:58`, inline: true },
-    ], footer };
+  if (kind === 'panel') {
+    const untilNext = daysBetween(s.today, '2026-09-18');
+    const headline = untilNext === 0 ? `🔥 **วันนี้เปิดจอง** **8ขฉ** 5001–6500 · เลขในฝัน **${s.numbers.length}** เลข · 10:00–16:00 น.`
+      : untilNext > 0 ? `⏳ เลขในฝันเปิดครั้งถัดไป **ศ. 18 ก.ย.** (อีก ${untilNext} วัน) · **8ขฉ** 5001–6500 · เลขในฝัน **${s.numbers.length}** เลข`
+      : '😴 สัปดาห์นี้ไม่มีเลขในฝันเปิดแล้ว · รอตารางรอบหน้า (เช้าวันจันทร์)';
+    const wanted = $('wanted').value.split(',').map((x) => +x.trim()).filter(Boolean);
+    return { title: '🏠 dlt-plate-watcher', color: untilNext === 0 ? 0xef4444 : untilNext > 0 ? 0x22c55e : 0x3b82f6,
+      description: `${headline}\n${e.vehicle}`,
+      fields: [
+        { name: '📋 เฝ้าอยู่', value: `${wanted.length} เลข · 2 รูปแบบ${EXCLUDED.size ? ` · 🚫 ${EXCLUDED.size}` : ''}\n${wanted.slice(0, 10).map((n) => `\`${n}\``).join(' ') || '(ยังไม่ระบุเลข · กด 🔢)'}` },
+        { name: '🧭 bot', value: 'ออนไลน์ 2 ชม. 17 นาที\nเช็คล่าสุด 08:00 · รอบถัดไป 08:00 / ปิง 09:50', inline: true },
+        { name: '📅 ตาราง', value: 'จ. 14 ก.ย. – ศ. 18 ก.ย.\nอัปเดต Mon, 14 Sep 2026 01:58', inline: true },
+        { name: 'ปุ่ม', value: 'แถวบน = ทำ · แถวล่าง = ดู · ทุกคำตอบเห็นเฉพาะคุณ · หาแผงไม่เจอพิมพ์ `/panel`' },
+      ], footer };
+  }
   return { title: '🗓️ ตารางที่ตั้งไว้หมดอายุแล้ว', color: 0x6b7280,
     description: `ตารางล่าสุดจบไปตั้งแต่ ${fmt('2026-09-18')} แต่ไฟล์บน Drive ยังไม่เปลี่ยน\nถ้าขนส่งย้ายไปใช้ไฟล์ใหม่ ให้เปิดหน้าตาราง คัดลอกลิงก์ iframe มาใส่ \`scheduleFileId\``, footer };
 }
@@ -336,14 +345,21 @@ const BTNS = [
   { cls: 'l', href: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: '🌐 เข้าสู่เว็บไซต์ ↗', json: { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } },
 ];
 const CMDS = [
-  { cls: 's', act: 'cmd_schedule', label: '📅 ตารางสัปดาห์นี้', json: { type: 2, style: 2, custom_id: 'cmd_schedule', label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } } },
-  { cls: 's', act: 'cmd_match', label: '🎯 เลขในฝันรอบนี้', json: { type: 2, style: 2, custom_id: 'cmd_match', label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } } },
+  { cls: 's', act: 'cmd_schedule', label: '📅 ตาราง', json: { type: 2, style: 2, custom_id: 'cmd_schedule', label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } } },
+  { cls: 's', act: 'cmd_match', label: '🎯 เลขในฝัน', json: { type: 2, style: 2, custom_id: 'cmd_match', label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } } },
   { cls: 'p', act: 'cmd_check', label: '🔄 เช็คตอนนี้', json: { type: 2, style: 1, custom_id: 'cmd_check', label: 'เช็คตอนนี้', emoji: { name: '🔄' } } },
   { cls: 's', act: 'cmd_status', label: '🧭 สถานะ bot', json: { type: 2, style: 2, custom_id: 'cmd_status', label: 'สถานะ bot', emoji: { name: '🧭' } } },
-  { cls: 's', act: 'history', label: '📜 ดูประวัติแชต', json: { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } } },
+  { cls: 's', act: 'history', label: '📜 ประวัติ', json: { type: 2, style: 2, custom_id: 'show_history', label: 'ประวัติ', emoji: { name: '📜' } } },
   { cls: 's', act: 'cmd_guide', label: '❓ คู่มือ', json: { type: 2, style: 2, custom_id: 'cmd_guide', label: 'คู่มือ', emoji: { name: '❓' } } },
 ];
-function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; const per = $('btnLayout').value === '2x2' ? 2 : set.length > 5 ? 3 : 5; return Array.from({ length: Math.ceil(set.length / per) }, (_, i) => set.slice(i * per, i * per + per)); }
+const byAct = (acts) => acts.map((a) => [...BTNS, ...CMDS].find((b) => b.act === a || (a === 'web' && b.href)));
+const NOTIFY_SET = byAct(['share', 'web']);
+const PANEL_SETS = [byAct(['add', 'wishlist', 'clear', 'web']), byAct(['cmd_schedule', 'cmd_match', 'cmd_check', 'history', 'cmd_guide'])];
+function buttonRows() {
+  const per = $('btnLayout').value === '2x2' ? 2 : 5;
+  const chunk = (set) => Array.from({ length: Math.ceil(set.length / per) }, (_, i) => set.slice(i * per, i * per + per));
+  return $('kind').value === 'panel' ? PANEL_SETS.flatMap(chunk) : chunk(NOTIFY_SET);
+}
 const CMD_OUT = {
   cmd_schedule: () => embedBox(weekEmbed({ title: '📅 ตารางเปิดจองสัปดาห์นี้', today: $('today').value, mark: true })),
   cmd_schedule_legacy: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),

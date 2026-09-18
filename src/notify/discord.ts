@@ -177,19 +177,49 @@ export function reminderEmbed(kind: 'open' | 'deadline', e: ScheduleEntry, daysL
       };
 }
 
-export function panelEmbed(info: { wishlistCount: number; version: string }): Embed {
+export interface PanelInfo {
+  config: Config;
+  /** แถวตารางของรถประเภทผู้ใช้ (ว่างถ้าโหลดไม่ได้) */
+  entries: ScheduleEntry[];
+  matches: Match[];
+  today: string;
+  startedAt: Date;
+  lastCheckAt?: Date;
+  version?: string;
+  stale?: boolean;
+}
+
+const bkkTime = (d: Date) => d.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
+const uptimeText = (since: Date) => { const m = Math.round((Date.now() - since.getTime()) / 60000); return m < 60 ? `${m} นาที` : `${Math.floor(m / 60)} ชม. ${m % 60} นาที`; };
+
+/** 🏠 landing panel — อยู่ล่างสุดของช่องเสมอ ตอบ "ตอนนี้เป็นยังไง ต้องทำอะไร" โดยไม่ต้องกด */
+export function panelEmbed(info: PanelInfo): Embed {
+  const { config: c, matches, today } = info;
+  const w = c.wishlist;
+  const todayMatch = matches.find((m) => m.entry.openDate === today);
+  const next = matches.filter((m) => m.entry.openDate > today).sort((a, b) => a.entry.openDate.localeCompare(b.entry.openDate))[0];
+  const line = (m: Match) => `**${m.entry.prefix}** ${m.entry.from}–${m.entry.to} · เลขในฝัน **${m.numbers.length}** เลข`;
+  let headline: string; let color: number;
+  if (info.stale) { headline = '🗓️ ตารางที่ตั้งไว้หมดอายุแล้ว — กด 📅 ดูรายละเอียด'; color = COLOR.closed; }
+  else if (!info.entries.length) { headline = '⚠️ โหลดตารางไม่ได้ในรอบนี้ — กด 🔄 ลองใหม่'; color = COLOR.warn; }
+  else if (todayMatch) { headline = `🔥 **วันนี้เปิดจอง** ${line(todayMatch)} · 10:00–16:00 น.`; color = 0xef4444; }
+  else if (next) { headline = `⏳ เลขในฝันเปิดครั้งถัดไป **${formatThaiDateShort(next.entry.openDate)}** (อีก ${daysBetween(today, next.entry.openDate)} วัน) · ${line(next)}`; color = COLOR.match; }
+  else { headline = '😴 สัปดาห์นี้ไม่มีเลขในฝันเปิดแล้ว · รอตารางรอบหน้า (เช้าวันจันทร์)'; color = COLOR.info; }
+
+  const nums = w.numbers.slice(0, 10).map((n) => `\`${n}\``).join(' ') + (w.numbers.length > 10 ? ` …+${w.numbers.length - 10}` : '');
+  const exclude = w.exclude ?? [];
+  const summary = `${w.numbers.length} เลข · ${w.patterns.length} รูปแบบ${w.digitSums.length ? ` · ผลรวม ${w.digitSums.join(',')}` : ''}${exclude.length ? ` · 🚫 ${exclude.length}` : ''}`;
+  const week = info.entries.length ? `${formatThaiDateShort(info.entries[0].openDate)} – ${formatThaiDateShort(info.entries.at(-1)!.openDate)}` : '—';
+
   return {
-    title: '🛠️ แผงควบคุม dlt-plate-watcher',
-    description: 'กดปุ่มด้านล่างแทนการพิมพ์คำสั่งในเทอร์มินัล · คำตอบเห็นเฉพาะคุณ',
-    color: COLOR.info,
+    title: '🏠 dlt-plate-watcher',
+    description: `${headline}\n${VEHICLE_LABEL[c.vehicleType]}`,
+    color,
     fields: [
-      { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule`', inline: true },
-      { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match`', inline: true },
-      { name: '🔄 เช็คตอนนี้', value: '= `npm run check`', inline: true },
-      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true },
-      { name: '📜 ดูประวัติแชต', value: 'ที่เคยแจ้งไปแล้ว', inline: true },
-      { name: '❓ คู่มือ', value: 'ทุกปุ่มทำอะไร ขยายความจากการ์ด', inline: true },
-      { name: 'ตอนนี้', value: `wishlist ${info.wishlistCount} เลข · ตารางเวอร์ชัน ${info.version}`, inline: true },
+      { name: '📋 เฝ้าอยู่', value: `${summary}\n${nums || '(ยังไม่ระบุเลข · กด 🔢)'}` },
+      { name: '🧭 bot', value: `ออนไลน์ ${uptimeText(info.startedAt)}\nเช็คล่าสุด ${info.lastCheckAt ? bkkTime(info.lastCheckAt) : 'ยังไม่เช็ค'} · รอบถัดไป 08:00 / ปิง 09:50`, inline: true },
+      { name: '📅 ตาราง', value: `${week}\n${info.version ? `อัปเดต ${info.version.replace(/:\d\d GMT$/, '')}` : 'โหลดไม่ได้'}`, inline: true },
+      { name: 'ปุ่ม', value: 'แถวบน = ทำ · แถวล่าง = ดู · ทุกคำตอบเห็นเฉพาะคุณ · หาแผงไม่เจอพิมพ์ `/panel`' },
     ],
     footer: { text: FOOTER },
   };
@@ -200,7 +230,7 @@ export function guideEmbeds(): Embed[] {
   return [
     {
       title: '❓ คู่มือปุ่ม — ข้อความแจ้งเตือน',
-      description: 'ปุ่ม 4 ปุ่มใต้ข้อความแจ้งเตือนทุกอัน (🎯 เลขที่เล็งไว้ · 🚦 อีก 10 นาที · ⏰ เตือนก่อนเปิด · ⚠️ หมดเขตจด · 📅 ตารางใหม่)',
+      description: 'ใต้การ์ดแจ้งเตือนมีแค่ 📤 แชร์เลข กับ 🌐 เข้าสู่เว็บไซต์ · ปุ่มอื่นอยู่ที่ landing panel ล่างสุดของช่อง',
       color: COLOR.match,
       fields: [
         { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 3 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ไม่อยากได้** ตัดเลขออกจากทุกรูปแบบ (จองได้แล้ว / ไม่ชอบ) · **ลบ** ออกจากรายการ\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม ใครเล็งไว้ก่อน และ 💡 ถ้ารูปแบบครอบอยู่แล้ว\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
@@ -211,14 +241,13 @@ export function guideEmbeds(): Embed[] {
       ],
     },
     {
-      title: '🛠️ คู่มือปุ่ม — แผงควบคุม',
-      description: 'แผงนี้แทนการพิมพ์คำสั่งในเทอร์มินัล · อยู่ล่างสุดของช่องเสมอ · หาไม่เจอพิมพ์ `/panel`',
+      title: '🏠 คู่มือปุ่ม — landing panel',
+      description: 'แผงหลักอยู่ล่างสุดของช่องเสมอ บอกสถานะวันนี้ + wishlist + bot โดยไม่ต้องกด · หาไม่เจอพิมพ์ `/panel`\nแถวบน = ทำ (🔢 📋 🧹 🌐) · แถวล่าง = ดู (📅 🎯 🔄 📜 ❓)',
       color: COLOR.info,
       fields: [
         { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule` · ตารางเปิดจองทั้ง 3 ประเภทรถ วันไหนหมวดอะไร ช่วงเลขเท่าไหร่ จดภายในวันไหน' },
         { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน' },
         { name: '🔄 เช็คตอนนี้', value: '= `npm run check` · ดึงตารางล่าสุดแล้วส่งแจ้งเตือนเฉพาะที่ยังไม่เคยส่ง (ปกติทำเองทุกวัน 08:00)' },
-        { name: '🧭 สถานะ bot', value: 'ออนไลน์มานานเท่าไหร่ · wishlist กี่เลข · รอบ check และปิงถัดไป' },
         { name: '📜 ดูประวัติแชต', value: 'รายการที่ bot เคยแจ้งไปแล้ว (ล่าสุดก่อน) เห็นเฉพาะคุณ' },
         { name: '❓ คู่มือ', value: 'ข้อความนี้' },
         { name: 'สิ่งที่ bot จะไม่ทำ', value: 'ไม่ล็อกอิน ThaID · ไม่กรอกเลขบัตร · ไม่กดจองแทน · ไม่เช็คกับระบบขนส่งว่าเลขถูกจองแล้วหรือยัง' },

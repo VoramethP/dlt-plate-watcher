@@ -32,18 +32,7 @@ export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100
 export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
 export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];
 
-export const COMMAND_BUTTONS = [
-  { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } },
-  { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
-  { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
-  { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
-  { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
-  { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
-];
-/** แผงมี 6 ปุ่ม → 3+3 สมดุลกว่า 5+1 (ยกเว้นผู้ใช้ตั้งเองผ่าน env) */
-export const commandRows = () => rowsOf(COMMAND_BUTTONS, process.env.DISCORD_BUTTONS_PER_ROW ? buttonsPerRow() : 3);
-/** @deprecated ใช้ commandRows() */
-export const commandRow = () => ({ type: 1, components: COMMAND_BUTTONS });
+
 
 /** แปลง embed ของข้อความที่กดปุ่มเป็นข้อความล้วน ไว้ใส่ code block ให้คัดลอกไปคุยกับคนอื่น */
 export function embedToText(e: { title?: string | null; description?: string | null; fields?: Array<{ name: string; value: string }> }): string {
@@ -74,19 +63,31 @@ export const buttonsPerRow = () => {
 };
 const rowsOf = <T,>(items: T[], per = buttonsPerRow()) => Array.from({ length: Math.ceil(items.length / per) }, (_, i) => ({ type: 1 as const, components: items.slice(i * per, i * per + per) }));
 
-/** ปุ่มใต้ข้อความแจ้งเตือน · style 1=primary 2=secondary 4=danger 5=link */
-export const NOTIFY_BUTTONS = [
-  { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
-  { type: 2, style: 2, custom_id: BUTTON.showWishlist, label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } },
-  { type: 2, style: 2, custom_id: BUTTON.share, label: 'แชร์เลข', emoji: { name: '📤' } },
-  { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
-  { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
-];
+/** ปุ่มทั้งหมด — style 1=primary 2=secondary 4=danger 5=link */
+export const BTN = {
+  addNumber: { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
+  wishlist: { type: 2, style: 2, custom_id: BUTTON.showWishlist, label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } },
+  share: { type: 2, style: 2, custom_id: BUTTON.share, label: 'แชร์เลข', emoji: { name: '📤' } },
+  clear: { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
+  web: { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
+  schedule: { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตาราง', emoji: { name: '📅' } },
+  match: { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝัน', emoji: { name: '🎯' } },
+  check: { type: 2, style: 2, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
+  history: { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ประวัติ', emoji: { name: '📜' } },
+  guide: { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
+} as const;
+
+/** ใต้การ์ดแจ้งเตือน: เหลือแค่ปุ่มที่เกี่ยวกับการ์ดนั้น (ทำอย่างอื่นไปที่ landing panel ล่างสุด) */
+export const NOTIFY_BUTTONS = [BTN.share, BTN.web];
 export const buttonRows = () => rowsOf(NOTIFY_BUTTONS);
-/** แถวปุ่มเดี่ยว 📤 สำหรับคำตอบเห็นคนเดียว (ตาราง / เลขในฝัน / เลขที่เฝ้าอยู่ / สถานะ) */
-export const shareRow = () => ({ type: 1 as const, components: [NOTIFY_BUTTONS.find((b) => b.custom_id === BUTTON.share)!] });
-/** @deprecated ใช้ buttonRows() — คงไว้ให้เทสเก่า */
-export const buttonRow = () => ({ type: 1, components: NOTIFY_BUTTONS });
+export const shareRow = () => ({ type: 1 as const, components: [BTN.share] });
+
+/** landing panel: แถว "ทำ" + แถว "ดู" */
+export const PANEL_ACTION_BUTTONS = [BTN.addNumber, BTN.wishlist, BTN.clear, BTN.web];
+export const PANEL_VIEW_BUTTONS = [BTN.schedule, BTN.match, BTN.check, BTN.history, BTN.guide];
+export const panelRows = () => [...rowsOf(PANEL_ACTION_BUTTONS), ...rowsOf(PANEL_VIEW_BUTTONS)];
+/** @deprecated ชื่อเก่า — ตอนนี้แผงคือ panelRows() */
+export const commandRows = panelRows;
 
 /** "5555, 6000 6464\n12345 abc" → valid [5555, 6000, 6464] · invalid ["12345", "abc"] (ไม่ซ้ำ รักษาลำดับ) */
 export function parseNumbers(input: string): { valid: number[]; invalid: string[] } {

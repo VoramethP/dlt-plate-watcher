@@ -32,10 +32,21 @@ describe('คู่มือและแผงควบคุม', () => {
     const json = JSON.stringify(embeds);
     for (const e of embeds) for (const f of e.fields ?? []) expect(f.value.length).toBeLessThanOrEqual(1024);
     expect(json.length).toBeLessThanOrEqual(6000);
-    for (const label of ['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'แชร์เลข', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์', 'ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'คู่มือ']) expect(json).toContain(label);
+    for (const label of ['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'แชร์เลข', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์', 'ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'คู่มือ']) expect(json).toContain(label);
   });
-  it('panelEmbed มีช่องคู่มือ', () => {
-    expect(JSON.stringify(panelEmbed({ wishlistCount: 3, version: 'v' }))).toContain('คู่มือ');
+  it('landing panel: headline เปลี่ยนตามสถานการณ์ และสรุป wishlist', () => {
+    const entry = { vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' };
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555, 9999], patterns: [{ name: 'ตอง', regex: 'x' }], digitSums: [], exclude: [4444] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const match = { entry, numbers: [5555], reasons: new Map([[5555, ['ตอง']]]), reasonOrder: ['ตอง'] };
+    const base = { config, entries: [entry], matches: [match], startedAt: new Date(), version: 'Mon, 14 Sep 2026 01:58:13 GMT' };
+    const upcoming = panelEmbed({ ...base, today: '2026-09-15' });
+    expect(upcoming.description).toContain('⏳ เลขในฝันเปิดครั้งถัดไป **ศ. 18 ก.ย.** (อีก 3 วัน)');
+    expect(JSON.stringify(upcoming)).toContain('2 เลข · 1 รูปแบบ · 🚫 1');
+    expect(JSON.stringify(upcoming)).toContain('อัปเดต Mon, 14 Sep 2026 01:58');
+    expect(panelEmbed({ ...base, today: '2026-09-18' }).description).toContain('🔥 **วันนี้เปิดจอง**');
+    expect(panelEmbed({ ...base, today: '2026-09-19' }).description).toContain('😴');
+    expect(panelEmbed({ ...base, today: '2026-09-19', stale: true }).description).toContain('🗓️');
+    expect(panelEmbed({ ...base, entries: [], matches: [], today: '2026-09-15' }).description).toContain('⚠️');
   });
 });
 

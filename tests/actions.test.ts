@@ -2,36 +2,38 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { coveredBy, embedToText, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { coveredBy, embedToText, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRows, clampReply, panelRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
 import { loadState } from '../src/state.js';
 
-describe('buttonRow', () => {
-  it('มี 4 ปุ่มตามที่ร่างไว้ และปุ่มสุดท้ายเป็นลิงก์ไปหน้าจองของขนส่ง', () => {
-    const row = buttonRow();
-    expect(row.components.map((c) => c.label)).toEqual(['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'แชร์เลข', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์']);
-    expect(row.components.length).toBeLessThanOrEqual(5);
-    const link = row.components[4] as { style: number; url?: string };
+describe('ปุ่มใต้การ์ดแจ้งเตือน', () => {
+  it('เหลือแค่ 📤 แชร์เลข กับ 🌐 เข้าสู่เว็บไซต์ (ที่เหลืออยู่บน landing panel)', () => {
+    const rows = buttonRows();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].components.map((c) => c.label)).toEqual(['แชร์เลข', 'เข้าสู่เว็บไซต์']);
+    const link = rows[0].components[1] as { style: number; url?: string };
     expect(link.style).toBe(5);
     expect(link.url).toContain('reserve.dlt.go.th');
   });
 });
 
-describe('การจัดแถวปุ่ม', () => {
-  it('ค่าเริ่มต้นแถวเดียว (Discord ยืดปุ่มเต็มแถวไม่ได้ แยกแถวแล้วขอบไม่ตรง)', () => {
+describe('landing panel: แถวทำ + แถวดู', () => {
+  it('ค่าเริ่มต้น 2 แถว: ทำ 4 ปุ่ม · ดู 5 ปุ่ม (ไม่เกิน 5 ต่อแถว)', () => {
     delete process.env.DISCORD_BUTTONS_PER_ROW;
-    expect(buttonRows().map((r) => r.components.length)).toEqual([5]);
-    expect(commandRows().map((r) => r.components.length)).toEqual([3, 3]); // 6 ปุ่ม → 3+3
-    expect(buttonRows().every((r) => r.type === 1)).toBe(true);
+    const rows = panelRows();
+    expect(rows.map((r) => r.components.map((c) => c.label))).toEqual([
+      ['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์'],
+      ['ตาราง', 'เลขในฝัน', 'เช็คตอนนี้', 'ประวัติ', 'คู่มือ'],
+    ]);
+    expect(rows.every((r) => r.type === 1 && r.components.length <= 5)).toBe(true);
   });
-  it('DISCORD_BUTTONS_PER_ROW=2 → 2+2 และ 2+2+1', () => {
+  it('DISCORD_BUTTONS_PER_ROW=2 → แบ่งแถวละ 2 ทั้งสองกลุ่ม', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '2';
-    expect(buttonRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
-    expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 2]);
+    expect(panelRows().map((r) => r.components.length)).toEqual([2, 2, 2, 2, 1]);
     delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
-  it('ค่าเพี้ยน → กลับไปแถวเดียว', () => {
+  it('ค่าเพี้ยน → กลับไปค่าเริ่มต้น', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '9';
-    expect(buttonRows()).toHaveLength(1);
+    expect(panelRows()).toHaveLength(2);
     delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
 });
@@ -57,14 +59,8 @@ describe('embedToText — สำหรับปุ่ม 📤 แชร์เล
   });
 });
 
-describe('commandRow', () => {
-  it('ปุ่มลัด 4 คำสั่ง custom_id ขึ้นต้น cmd_ ทั้งหมด', () => {
-    const row = commandRow();
-    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'ดูประวัติแชต', 'คู่มือ']);
-    // ปุ่มคำสั่งขึ้นต้น cmd_ (bot ส่งไป handler ตามชื่อ) · ยกเว้น 📜 ที่ย้ายมาจากแถวแจ้งเตือน
-    expect(row.components.every((c) => 'custom_id' in c && (c.custom_id.startsWith('cmd_') || c.custom_id === 'show_history'))).toBe(true);
-  });
-  it('clampReply ตัดให้ไม่เกินลิมิต Discord', () => {
+describe('clampReply', () => {
+  it('ตัดให้ไม่เกินลิมิต Discord', () => {
     expect(clampReply('x'.repeat(3000)).length).toBeLessThanOrEqual(2000);
     expect(clampReply('สั้น')).toBe('สั้น');
   });
