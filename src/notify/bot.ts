@@ -20,6 +20,8 @@ export interface BotOptions {
   commands?: Partial<Record<CommandId, () => Promise<string | { embeds: Embed[] }>>>;
   /** สร้าง embed ของแผงควบคุม (bot เรียกเองตอนต้องโพสต์ใหม่ เช่น หลังแจ้งเตือน หรือ /panel) */
   panel?: () => Promise<Embed>;
+  /** embed 📋 เลขที่เฝ้าอยู่ (รับ owners จาก state) */
+  wishlist?: (owners: Record<string, string>) => Promise<Embed>;
   /** แถวตารางของรถประเภทผู้ใช้ — ไว้บอกว่าเลขที่กรอกจะเปิดวันไหน · ไม่มีก็ข้าม */
   myEntries?: () => Promise<ScheduleEntry[]>;
 }
@@ -136,6 +138,13 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
           new ActionRowBuilder<TextInputBuilder>().addComponents(remove),
         );
         await i.showModal(modal);
+        return;
+      }
+      case BUTTON.showWishlist: {
+        if (!opts.wishlist) { await i.reply({ content: 'ยังไม่ได้ต่อปุ่มนี้', ...ephemeral }); return; }
+        await i.deferReply(ephemeral);
+        const state = await loadState(opts.statePath);
+        await i.editReply({ embeds: [await opts.wishlist(state.owners ?? {})] });
         return;
       }
       case BUTTON.showHistory: {

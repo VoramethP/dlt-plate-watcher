@@ -8,8 +8,9 @@ import { loadState } from '../src/state.js';
 describe('buttonRow', () => {
   it('มี 4 ปุ่มตามที่ร่างไว้ และปุ่มสุดท้ายเป็นลิงก์ไปหน้าจองของขนส่ง', () => {
     const row = buttonRow();
-    expect(row.components.map((c) => c.label)).toEqual(['กรอกเลขที่อยากจอง', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์']);
-    const link = row.components[3] as { style: number; url?: string };
+    expect(row.components.map((c) => c.label)).toEqual(['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์']);
+    expect(row.components.length).toBeLessThanOrEqual(5);
+    const link = row.components[4] as { style: number; url?: string };
     expect(link.style).toBe(5);
     expect(link.url).toContain('reserve.dlt.go.th');
   });
@@ -18,13 +19,13 @@ describe('buttonRow', () => {
 describe('การจัดแถวปุ่ม', () => {
   it('ค่าเริ่มต้นแถวเดียว (Discord ยืดปุ่มเต็มแถวไม่ได้ แยกแถวแล้วขอบไม่ตรง)', () => {
     delete process.env.DISCORD_BUTTONS_PER_ROW;
-    expect(buttonRows().map((r) => r.components.length)).toEqual([4]);
+    expect(buttonRows().map((r) => r.components.length)).toEqual([5]);
     expect(commandRows().map((r) => r.components.length)).toEqual([5]);
     expect(buttonRows().every((r) => r.type === 1)).toBe(true);
   });
   it('DISCORD_BUTTONS_PER_ROW=2 → 2+2 และ 2+2+1', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '2';
-    expect(buttonRows().map((r) => r.components.length)).toEqual([2, 2]);
+    expect(buttonRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
     expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
     delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
@@ -77,7 +78,7 @@ describe('updateWishlist', () => {
   it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', async () => {
     const { path } = await tmpConfig();
     const c = await updateWishlist(path, [5555, 9999, 15], []);
-    expect(c).toEqual({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3 });
+    expect(c).toEqual({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999] });
     expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([15, 5555, 9999]);
   });
   it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', async () => {
@@ -114,13 +115,13 @@ describe('เจ้าของเลข + ข้อความสรุป', (
     expect(describeNumber(15, entries, '2026-09-15')).toContain('ยังไม่อยู่ในตาราง');
   });
   it('wishlistChangeText มีบรรทัดต่อเลขและเตือนเจ้าของเดิม', () => {
-    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3 }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
+    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3, numbers: [5555, 6000, 9999] }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
     expect(text).toContain('✅ **5555** เพิ่มแล้ว');
     expect(text).toContain('somchai เล็งไว้ก่อนแล้ว');
     expect(text).toContain('🗑️ **15**');
     expect(text).toContain('❔ **42**');
     expect(text).toContain('❌ "abc"');
-    expect(text).toContain('wishlist ตอนนี้ 3 เลข');
+    expect(text).toContain('เลขที่เฝ้าอยู่ตอนนี้ (3):** `5555` `6000` `9999`');
   });
 });
 

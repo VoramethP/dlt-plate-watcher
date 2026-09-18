@@ -118,6 +118,30 @@ export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config
   };
 }
 
+/** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */
+export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string): Embed {
+  const w = config.wishlist;
+  const statusOf = (n: number) => {
+    const slot = entries.find((e) => n >= e.from && n <= e.to);
+    if (!slot) return '🔭 ยังไม่ถึงคิว';
+    const d = daysBetween(today, slot.openDate);
+    return d < 0 ? `⏪ เปิดไปแล้ว ${formatThaiDateShort(slot.openDate)}` : d === 0 ? `🔥 เปิด**วันนี้** ${slot.prefix}` : `⏳ ${formatThaiDateShort(slot.openDate)} ${slot.prefix} (อีก ${d} วัน)`;
+  };
+  const numberLines = w.numbers.map((n) => `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}`);
+  const fields: Embed['fields'] = [
+    { name: `เลขที่ระบุไว้ (${w.numbers.length})`, value: numberLines.length ? numberLines.slice(0, 30).join('\n') + (numberLines.length > 30 ? `\n…และอีก ${numberLines.length - 30} เลข` : '') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
+  ];
+  if (w.patterns.length) fields.push({ name: `รูปแบบเลขที่เฝ้า (${w.patterns.length})`, value: w.patterns.map((p) => `• ${p.name}`).join('\n'), inline: true });
+  if (w.digitSums.length) fields.push({ name: 'ผลรวมเลขที่เฝ้า', value: w.digitSums.join(', '), inline: true });
+  return {
+    title: '📋 เลขที่เฝ้าอยู่',
+    description: `${VEHICLE_LABEL[config.vehicleType]}\n🔭 ยังไม่ถึงคิว · ⏳ กำลังมา · 🔥 วันนี้ · ⏪ เปิดไปแล้ว`,
+    color: COLOR.info,
+    fields,
+    footer: { text: 'กรอกผิด → กด 🔢 แล้วใส่เลขในช่อง "ลบ" · รูปแบบเลขแก้ได้ใน watch.config.json' },
+  };
+}
+
 export function statusEmbed(info: { startedAt: Date; wishlistCount: number; patternCount: number; vehicleType: string; today: string; nextMatchDate?: string }): Embed {
   const up = Math.round((Date.now() - info.startedAt.getTime()) / 60000);
   const upText = up < 60 ? `${up} นาที` : `${Math.floor(up / 60)} ชม. ${up % 60} นาที`;
@@ -177,6 +201,7 @@ export function guideEmbeds(): Embed[] {
       color: COLOR.match,
       fields: [
         { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 2 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ลบ** เลขที่กรอกผิด\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม และมีใครในเซิร์ฟเวอร์เล็งไว้ก่อน\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
+        { name: '📋 เลขที่เฝ้าอยู่', value: 'รายการทุกเลขใน wishlist ตอนนี้ ใครเพิ่ม และจะเปิดจองวันไหน · ใช้ตรวจว่าลืมลบเลขไหนไหม' },
         { name: '📜 ดูประวัติแชต', value: 'รายการที่ bot เคยแจ้งไปแล้ว (ล่าสุดก่อน) เห็นเฉพาะคุณ ไม่รบกวนคนอื่นในช่อง' },
         { name: '🧹 ลบประวัติแชตเก่า', value: 'ลบข้อความเก่าของ bot ในช่องนี้ (สูงสุด 100 ข้อความล่าสุด) เก็บข้อความที่คุณกดไว้ · ไม่แตะข้อความของคนอื่น' },
         { name: '🌐 เข้าสู่เว็บไซต์', value: 'ลิงก์ไปหน้าจองของกรมขนส่ง reserve.dlt.go.th เปิด 10:00–16:00 น. ตามตาราง ต้องยืนยันตัวตน ThaID ก่อนจอง' },

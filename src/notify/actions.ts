@@ -9,6 +9,7 @@ import { formatThaiDate } from '../thai-date.js';
 
 export const BUTTON = {
   addNumber: 'add_number',
+  showWishlist: 'show_wishlist',
   showHistory: 'show_history',
   clearHistory: 'clear_history',
 } as const;
@@ -58,6 +59,7 @@ const rowsOf = <T,>(items: T[], per = buttonsPerRow()) => Array.from({ length: M
 /** ปุ่มใต้ข้อความแจ้งเตือน · style 1=primary 2=secondary 4=danger 5=link */
 export const NOTIFY_BUTTONS = [
   { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
+  { type: 2, style: 2, custom_id: BUTTON.showWishlist, label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } },
   { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
   { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
   { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
@@ -86,6 +88,8 @@ const writeConfigRaw = (configPath: string, raw: unknown) => writeFile(configPat
 
 export interface WishlistChange {
   added: number[]; already: number[]; removed: number[]; notFound: number[]; total: number;
+  /** รายการหลังแก้ (เรียงแล้ว) */
+  numbers: number[];
 }
 
 /** เพิ่ม/ลบหลายเลขใน watch.config.json ในครั้งเดียว · ลบก่อนเพิ่ม (พิมพ์เลขเดียวกันทั้งสองช่อง = เพิ่ม) */
@@ -99,7 +103,7 @@ export async function updateWishlist(configPath: string, add: number[], remove: 
   const added = add.filter((n) => !numbers.includes(n));
   numbers = [...numbers, ...added].sort((a, b) => a - b);
   if (added.length || removed.length) { raw.wishlist.numbers = numbers; await writeConfigRaw(configPath, raw); }
-  return { added, already, removed, notFound, total: numbers.length };
+  return { added, already, removed, notFound, total: numbers.length, numbers };
 }
 
 /** จำว่าใครเพิ่ม/ลบเลขไหน (ไว้บอกว่า "มี @คนนี้ เล็งไว้แล้ว") */
@@ -136,7 +140,8 @@ export function wishlistChangeText(c: WishlistChange, invalid: string[], owners:
   for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีใน wishlist อยู่แล้ว`);
   for (const t of invalid) lines.push(`❌ "${t}" ไม่ใช่เลขทะเบียน 1–9999`);
   if (!lines.length) lines.push('ไม่มีอะไรเปลี่ยน');
-  return `**wishlist ตอนนี้ ${c.total} เลข**\n${lines.join('\n')}\n-# การจองต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง`;
+  const current = c.numbers.length ? c.numbers.map((n) => `\`${n}\``).join(' ') : '(ว่าง)';
+  return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
 }
 
 const shortDate = (iso: string) => formatThaiDate(iso, false);

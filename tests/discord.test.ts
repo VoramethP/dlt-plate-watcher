@@ -68,3 +68,21 @@ describe('scheduleEmbed แบบมี config/today', () => {
     expect(JSON.stringify(e)).toContain('อีก 3 วัน');
   });
 });
+
+import { wishlistEmbed } from '../src/notify/discord.js';
+describe('wishlistEmbed', () => {
+  it('แสดงทุกเลข สถานะกับตาราง เจ้าของ และ pattern', () => {
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 5555, 9999], patterns: [{ name: 'เลขตอง', regex: 'x' }], digitSums: [9] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }, { vehicleType: 'car' as const, openDate: '2026-09-14', prefix: '8ขจ', from: 8001, to: 9999, registerBy: '2026-10-14' }];
+    const e = wishlistEmbed(config, { 5555: 'somchai' }, entries, '2026-09-15');
+    const v = e.fields![0].value;
+    expect(v).toContain('`15` 🔭');
+    expect(v).toContain('`5555` ⏳ ศ. 18 ก.ย. 8ขฉ (อีก 3 วัน) · 👤 somchai');
+    expect(v).toContain('`9999` ⏪');
+    expect(JSON.stringify(e)).toContain('เลขตอง');
+  });
+  it('wishlist ว่างก็ยังแสดงได้', () => {
+    const config = { scheduleFileId: 'F', vehicleType: 'van' as const, wishlist: { numbers: [], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    expect(wishlistEmbed(config, {}, [], '2026-09-15').fields![0].value).toContain('ยังไม่มี');
+  });
+});

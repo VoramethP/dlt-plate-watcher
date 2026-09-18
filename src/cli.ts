@@ -4,7 +4,7 @@ import { loadConfig } from './config.js';
 import { loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
 import { createBotNotifier, type BotNotifier } from './notify/bot.js';
 import { COMMAND } from './notify/actions.js';
-import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed } from './notify/discord.js';
+import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed, wishlistEmbed } from './notify/discord.js';
 import { todayBangkok as todayTH } from './thai-date.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
@@ -79,6 +79,11 @@ async function connectNotifier(): Promise<Notifier | undefined> {
     return createBotNotifier({
       token, channelId, configPath: values.config, statePath: env.statePath,
       myEntries: async () => { const c = await getConfig(); return (await loadSchedule(c.scheduleFileId)).entries.filter((e) => e.vehicleType === c.vehicleType); },
+      wishlist: async (owners) => {
+        const c = await getConfig();
+        const entries = (await loadSchedule(c.scheduleFileId).catch(() => ({ entries: [] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
+        return wishlistEmbed(c, owners, entries, todayTH());
+      },
       panel: async () => {
         const c = await getConfig();
         const s = await loadSchedule(c.scheduleFileId).catch(() => null);
