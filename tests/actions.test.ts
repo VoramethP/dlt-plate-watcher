@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { coveredBy, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
 import { loadState } from '../src/state.js';
 
 describe('buttonRow', () => {
@@ -122,6 +122,30 @@ describe('เจ้าของเลข + ข้อความสรุป', (
     expect(text).toContain('❔ **42**');
     expect(text).toContain('❌ "abc"');
     expect(text).toContain('เลขที่เฝ้าอยู่ตอนนี้ (3):** `5555` `6000` `9999`');
+  });
+});
+
+describe('เตือนเลขที่ pattern ครอบอยู่แล้ว', () => {
+  const rules = { patterns: [{ name: 'เลขตอง', regex: '^(\\d)\\1{2,3}$' }, { name: 'คู่สลับ', regex: '^(\\d)(\\d)\\1\\2$' }], digitSums: [9] };
+  it('coveredBy คืนชื่อกฎทุกข้อที่ครอบ', () => {
+    expect(coveredBy(5555, rules)).toEqual(['เลขตอง', 'คู่สลับ']);
+    expect(coveredBy(5050, rules)).toEqual(['คู่สลับ']);
+    expect(coveredBy(18, rules)).toEqual(['ผลรวม 9']);
+    expect(coveredBy(1234, rules)).toEqual([]);
+    expect(coveredBy(5555, { patterns: [{ name: 'พัง', regex: '(' }], digitSums: [] })).toEqual([]); // regex พังไม่ทำให้ล้ม
+  });
+  it('wishlistChangeText ใส่คำเตือนเฉพาะเลขที่ถูกครอบ', () => {
+    const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }];
+    const text = wishlistChangeText({ added: [5555, 1234], already: [], removed: [], notFound: [], total: 2, numbers: [1234, 5555] }, [], {}, 'nok', entries, '2026-09-15', rules);
+    expect(text).toContain('**5555** เพิ่มแล้ว');
+    expect(text).toContain('ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "เลขตอง", "คู่สลับ"');
+    expect(text.split('💡')).toHaveLength(2); // 1234 ไม่โดนเตือน
+  });
+  it('readPatternRules รับทั้ง string และ {name, regex}', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
+    const path = join(dir, 'c.json');
+    await writeFile(path, JSON.stringify({ wishlist: { numbers: [], patterns: ['^9+$', { name: 'ตอง', regex: '^(\\d)\\1{2}$' }], digitSums: [24] } }));
+    expect(await readPatternRules(path)).toEqual({ patterns: [{ name: '^9+$', regex: '^9+$' }, { name: 'ตอง', regex: '^(\\d)\\1{2}$' }], digitSums: [24] });
   });
 });
 

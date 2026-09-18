@@ -386,6 +386,8 @@ const WEEK = [
   { prefix: '8ขฉ', from: 5001, to: 6500, openDate: '2026-09-18' },
 ];
 const CLAIMED = { 5151: 'somchai', 9999: 'nok' };
+const PATTERN_RULES = [{ name: 'เลขตอง (555 / 5555)', re: /^(\d)\1{2,3}$/ }, { name: 'เลขคู่สลับ (5050)', re: /^(\d)(\d)\1\2$/ }];
+const coveredHint = (n) => { const hits = PATTERN_RULES.filter((p) => p.re.test(String(n))).map((p) => p.name); return hits.length ? `<br>&nbsp;&nbsp; ↳ 💡 เลขนี้ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "${hits.join('", "')}" ไม่ใส่ก็แจ้งเตือนอยู่ดี` : ''; };
 function checkNumber(n, list, today) {
   if (!(Number.isInteger(n) && n >= 1 && n <= 9999)) return { icon: '❌', text: `<b>${n || '?'}</b> ไม่ใช่เลขทะเบียน 1–9999`, add: false };
   if (list.includes(n)) return { icon: 'ℹ️', text: `<b>${n}</b> อยู่ใน wishlist ของคุณอยู่แล้ว`, add: false };
@@ -395,7 +397,7 @@ function checkNumber(n, list, today) {
   const d = daysBetween(today, slot.openDate);
   if (d < 0) return { icon: '⏪', text: `<b>${n}</b> ช่วง ${slot.prefix} ${slot.from}–${slot.to} เปิดไปแล้วเมื่อ ${fmt(slot.openDate)} (น่าจะถูกจองแล้ว) · เพิ่มไว้เผื่อรอบหน้า`, add: true };
   if (d === 0) return { icon: '🔥', text: `<b>${n}</b> เปิดจอง<b>วันนี้</b> ${slot.prefix} 10:00–16:00 น. · เพิ่มแล้ว รีบเลย`, add: true };
-  return { icon: '✅', text: `<b>${n}</b> เพิ่มแล้ว · จะเปิดจอง ${fmt(slot.openDate)} (${slot.prefix}) อีก ${d} วัน`, add: true };
+  return { icon: '✅', text: `<b>${n}</b> เพิ่มแล้ว · จะเปิดจอง ${fmt(slot.openDate)} (${slot.prefix}) อีก ${d} วัน${coveredHint(n)}`, add: true };
 }
 $('modalOk').onclick = () => {
   $('modalBg').style.display = 'none';

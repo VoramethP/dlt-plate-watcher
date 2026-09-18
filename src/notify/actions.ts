@@ -117,6 +117,21 @@ export async function updateOwners(statePath: string, user: string, added: numbe
   return before;
 }
 
+/** อ่าน pattern/digitSums จาก config ตรง ๆ (ไม่ผ่าน zod เพื่อไม่ผูก actions กับ config.ts) */
+export async function readPatternRules(configPath: string): Promise<{ patterns: Array<{ name: string; regex: string }>; digitSums: number[] }> {
+  const raw = JSON.parse(await readFile(configPath, 'utf8'));
+  const patterns = (raw.wishlist?.patterns ?? []).map((p: string | { name: string; regex: string }) => (typeof p === 'string' ? { name: p, regex: p } : p));
+  return { patterns, digitSums: raw.wishlist?.digitSums ?? [] };
+}
+
+/** เลขนี้ถูกเฝ้าอยู่แล้วผ่าน pattern/ผลรวมไหม → คืนชื่อกฎที่ครอบ (ว่าง = ไม่ครอบ) */
+export function coveredBy(n: number, rules: { patterns: Array<{ name: string; regex: string }>; digitSums: number[] }): string[] {
+  const hits = rules.patterns.filter((p) => { try { return new RegExp(p.regex, 'u').test(String(n)); } catch { return false; } }).map((p) => p.name);
+  const sum = String(n).split('').reduce((s, d) => s + Number(d), 0);
+  if (rules.digitSums.includes(sum)) hits.push(`ผลรวม ${sum}`);
+  return hits;
+}
+
 /** เลขนี้เกี่ยวกับตารางสัปดาห์นี้ยังไง (สำหรับรถประเภทเดียวกับผู้ใช้) */
 export function describeNumber(n: number, entries: ScheduleEntry[], today: string): string {
   const slot = entries.find((e) => n >= e.from && n <= e.to);
@@ -129,11 +144,14 @@ export function describeNumber(n: number, entries: ScheduleEntry[], today: strin
 }
 
 /** ข้อความสรุปผลของ modal — บรรทัดละเลข */
-export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string): string {
+export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string, rules = { patterns: [] as Array<{ name: string; regex: string }>, digitSums: [] as number[] }): string {
   const lines: string[] = [];
   for (const n of c.added) {
     const other = owners[n] && owners[n] !== user ? ` · 👤 ${owners[n]} เล็งไว้ก่อนแล้ว` : '';
-    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}`);
+    const covered = coveredBy(n, rules);
+    // เตือนแต่ยังเพิ่มให้ — ระบุตรง ๆ มีประโยชน์ตอนลบ pattern ทีหลัง
+    const dup = covered.length ? `\n   ↳ 💡 เลขนี้ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "${covered.join('", "')}" ไม่ใส่ก็แจ้งเตือนอยู่ดี` : '';
+    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}`);
   }
   for (const n of c.already) lines.push(`ℹ️ **${n}** อยู่ใน wishlist อยู่แล้ว${owners[n] && owners[n] !== user ? ` (👤 ${owners[n]})` : ''}`);
   for (const n of c.removed) lines.push(`🗑️ **${n}** ลบออกจาก wishlist แล้ว`);

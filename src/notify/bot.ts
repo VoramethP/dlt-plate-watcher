@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, MODAL_TEXT, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -169,7 +169,8 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     const user = i.user.displayName || i.user.username;
     const ownersBefore = await updateOwners(opts.statePath, user, change.added, change.removed);
     const entries = opts.myEntries ? await opts.myEntries().catch(() => []) : [];
-    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok())));
+    const rules = await readPatternRules(opts.configPath).catch(() => ({ patterns: [], digitSums: [] }));
+    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok(), rules)));
   }
 }
 
