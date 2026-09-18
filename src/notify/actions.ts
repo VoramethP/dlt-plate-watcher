@@ -10,18 +10,21 @@ import { formatThaiDate } from '../thai-date.js';
 export const BUTTON = {
   addNumber: 'add_number',
   showWishlist: 'show_wishlist',
+  share: 'share_text',
   showHistory: 'show_history',
   clearHistory: 'clear_history',
 } as const;
-export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove' } as const;
+export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove', excludeField: 'exclude' } as const;
 
 /** ข้อความใน modal — Discord จำกัด title/label ≤ 45 ตัวอักษร · placeholder ≤ 100 (เกินแล้ว discord.js โยน "Invalid string length" ก่อนส่ง → ปุ่มขึ้น "ไม่ตอบสนอง") */
 export const MODAL_TEXT = {
   title: 'เลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)',
   addLabel: 'เพิ่มเลข 1–9999 (คั่นด้วย , หรือเว้นวรรค)',
   addPlaceholder: 'เช่น 5555, 6000 6464',
-  removeLabel: 'ลบเลขที่กรอกผิด (ไม่ใส่ก็ได้)',
-  removePlaceholder: 'เช่น 15',
+  removeLabel: 'ลบออกจากรายการ (ไม่ใส่ก็ได้)',
+  removePlaceholder: 'เช่น 15 · ลบได้ทั้งเลขที่อยากได้และไม่อยากได้',
+  excludeLabel: 'ไม่อยากได้ — ตัดออกจากทุกรูปแบบ (ไม่ใส่ก็ได้)',
+  excludePlaceholder: 'เช่น 4444 หรือเลขที่จองได้แล้ว',
 } as const;
 export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100 } as const;
 
@@ -34,11 +37,26 @@ export const COMMAND_BUTTONS = [
   { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
   { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
   { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
+  { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
   { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
 ];
-export const commandRows = () => rowsOf(COMMAND_BUTTONS);
+/** แผงมี 6 ปุ่ม → 3+3 สมดุลกว่า 5+1 (ยกเว้นผู้ใช้ตั้งเองผ่าน env) */
+export const commandRows = () => rowsOf(COMMAND_BUTTONS, process.env.DISCORD_BUTTONS_PER_ROW ? buttonsPerRow() : 3);
 /** @deprecated ใช้ commandRows() */
 export const commandRow = () => ({ type: 1, components: COMMAND_BUTTONS });
+
+/** แปลง embed ของข้อความที่กดปุ่มเป็นข้อความล้วน ไว้ใส่ code block ให้คัดลอกไปคุยกับคนอื่น */
+export function embedToText(e: { title?: string | null; description?: string | null; fields?: Array<{ name: string; value: string }> }): string {
+  const plain = (s: string) => s.replace(/\*\*/g, '').replace(/`/g, '').replace(/^-# .*$/gm, '').replace(/\n{2,}/g, '\n').trim();
+  const lines: string[] = [];
+  if (e.title) lines.push(plain(e.title));
+  if (e.description) lines.push(plain(e.description));
+  for (const f of e.fields ?? []) {
+    const value = plain(f.value);
+    lines.push(value.includes('\n') ? `${plain(f.name)}:\n${value}` : `${plain(f.name)}: ${value}`);
+  }
+  return lines.join('\n');
+}
 
 /** Discord ตอบ interaction ได้ไม่เกิน 2000 ตัวอักษร */
 export function clampReply(text: string, max = 1900): string {
@@ -60,7 +78,7 @@ const rowsOf = <T,>(items: T[], per = buttonsPerRow()) => Array.from({ length: M
 export const NOTIFY_BUTTONS = [
   { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
   { type: 2, style: 2, custom_id: BUTTON.showWishlist, label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } },
-  { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
+  { type: 2, style: 2, custom_id: BUTTON.share, label: 'แชร์เลข', emoji: { name: '📤' } },
   { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
   { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
 ];
@@ -81,8 +99,8 @@ export function parseNumbers(input: string): { valid: number[]; invalid: string[
 
 async function readConfigRaw(configPath: string) {
   const raw = JSON.parse(await readFile(configPath, 'utf8'));
-  raw.wishlist ??= {}; raw.wishlist.numbers ??= [];
-  return raw as { wishlist: { numbers: number[] } };
+  raw.wishlist ??= {}; raw.wishlist.numbers ??= []; raw.wishlist.exclude ??= [];
+  return raw as { wishlist: { numbers: number[]; exclude: number[] } };
 }
 const writeConfigRaw = (configPath: string, raw: unknown) => writeFile(configPath, JSON.stringify(raw, null, 2) + '\n');
 
@@ -90,20 +108,39 @@ export interface WishlistChange {
   added: number[]; already: number[]; removed: number[]; notFound: number[]; total: number;
   /** รายการหลังแก้ (เรียงแล้ว) */
   numbers: number[];
+  /** ผลของช่อง "ไม่อยากได้" */
+  excluded: number[]; alreadyExcluded: number[]; unexcluded: number[];
+  exclude: number[];
 }
 
-/** เพิ่ม/ลบหลายเลขใน watch.config.json ในครั้งเดียว · ลบก่อนเพิ่ม (พิมพ์เลขเดียวกันทั้งสองช่อง = เพิ่ม) */
-export async function updateWishlist(configPath: string, add: number[], remove: number[]): Promise<WishlistChange> {
+/**
+ * แก้ wishlist ครั้งเดียวจบ ลำดับ: ลบ (ออกจากทั้งสองรายการ) → ไม่อยากได้ (ย้ายออกจากอยากได้) → เพิ่ม (ย้ายออกจากไม่อยากได้)
+ * ใส่เลขเดียวกันหลายช่อง = ช่องเพิ่มชนะ
+ */
+export async function updateWishlist(configPath: string, add: number[], remove: number[], exclude: number[] = []): Promise<WishlistChange> {
   const raw = await readConfigRaw(configPath);
   let numbers = [...raw.wishlist.numbers];
-  const removed = remove.filter((n) => numbers.includes(n));
-  const notFound = remove.filter((n) => !numbers.includes(n));
+  let ex = [...raw.wishlist.exclude];
+  const removed = remove.filter((n) => numbers.includes(n) || ex.includes(n));
+  const notFound = remove.filter((n) => !removed.includes(n));
   numbers = numbers.filter((n) => !removed.includes(n));
+  ex = ex.filter((n) => !removed.includes(n));
+
+  const alreadyExcluded = exclude.filter((n) => ex.includes(n));
+  const excluded = exclude.filter((n) => !ex.includes(n));
+  ex = [...ex, ...excluded];
+  numbers = numbers.filter((n) => !exclude.includes(n));
+
   const already = add.filter((n) => numbers.includes(n));
   const added = add.filter((n) => !numbers.includes(n));
+  const unexcluded = add.filter((n) => ex.includes(n));
+  ex = ex.filter((n) => !add.includes(n)).sort((a, b) => a - b);
   numbers = [...numbers, ...added].sort((a, b) => a - b);
-  if (added.length || removed.length) { raw.wishlist.numbers = numbers; await writeConfigRaw(configPath, raw); }
-  return { added, already, removed, notFound, total: numbers.length, numbers };
+
+  const changed = added.length || removed.length || excluded.length || unexcluded.length ||
+    exclude.some((n) => raw.wishlist.numbers.includes(n));
+  if (changed) { raw.wishlist.numbers = numbers; raw.wishlist.exclude = ex; await writeConfigRaw(configPath, raw); }
+  return { added, already, removed, notFound, total: numbers.length, numbers, excluded, alreadyExcluded, unexcluded, exclude: ex };
 }
 
 /** จำว่าใครเพิ่ม/ลบเลขไหน (ไว้บอกว่า "มี @คนนี้ เล็งไว้แล้ว") */
@@ -154,12 +191,16 @@ export function wishlistChangeText(c: WishlistChange, invalid: string[], owners:
     lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}`);
   }
   for (const n of c.already) lines.push(`ℹ️ **${n}** อยู่ใน wishlist อยู่แล้ว${owners[n] && owners[n] !== user ? ` (👤 ${owners[n]})` : ''}`);
-  for (const n of c.removed) lines.push(`🗑️ **${n}** ลบออกจาก wishlist แล้ว`);
-  for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีใน wishlist อยู่แล้ว`);
+  for (const n of c.unexcluded) lines.push(`♻️ **${n}** เอาออกจากรายการไม่อยากได้แล้ว (กลับมาเฝ้า)`);
+  for (const n of c.excluded) lines.push(`🚫 **${n}** ใส่รายการไม่อยากได้แล้ว · จะไม่แจ้งเลขนี้ไม่ว่าตรงรูปแบบไหน`);
+  for (const n of c.alreadyExcluded) lines.push(`ℹ️ **${n}** อยู่ในรายการไม่อยากได้อยู่แล้ว`);
+  for (const n of c.removed) lines.push(`🗑️ **${n}** ลบออกจากรายการแล้ว`);
+  for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีในรายการไหนอยู่แล้ว`);
   for (const t of invalid) lines.push(`❌ "${t}" ไม่ใช่เลขทะเบียน 1–9999`);
   if (!lines.length) lines.push('ไม่มีอะไรเปลี่ยน');
   const current = c.numbers.length ? c.numbers.map((n) => `\`${n}\``).join(' ') : '(ว่าง)';
-  return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
+  const ex = c.exclude.length ? `\n**🚫 ไม่อยากได้ (${c.exclude.length}):** ${c.exclude.map((n) => `\`${n}\``).join(' ')}` : '';
+  return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}${ex}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
 }
 
 const shortDate = (iso: string) => formatThaiDate(iso, false);

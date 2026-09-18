@@ -27,7 +27,9 @@ export function matchEntry(entry: ScheduleEntry, wishlist: Config['wishlist']): 
   const reasons = new Map<number, string[]>();
   const reasonOrder = [REASON_EXACT, ...patterns.map((p) => p.name), ...[...sums].sort((a, b) => a - b).map(reasonSum)];
 
+  const excluded = new Set(wishlist.exclude ?? []);
   for (let n = entry.from; n <= entry.to; n++) {
+    if (excluded.has(n)) continue; // ไม่อยากได้ → ไม่นับไม่ว่าจะตรงกฎไหน
     const why: string[] = [];
     if (wanted.has(n)) why.push(REASON_EXACT);
     const s = String(n);

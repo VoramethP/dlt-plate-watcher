@@ -154,7 +154,9 @@
   <h3>เพิ่มเลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)</h3>
   <div class="hint">ใส่ได้หลายเลข คั่นด้วยจุลภาค ช่องว่าง หรือขึ้นบรรทัดใหม่ · 1–9999</div>
   <textarea id="modalNum" rows="3" placeholder="เช่น 5555, 6000 6464" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
-  <div class="hint" style="margin-top:8px">ลบเลขที่กรอกผิด (ไม่ต้องใส่ก็ได้)</div>
+  <div class="hint" style="margin-top:8px">ไม่อยากได้ — ตัดออกจากทุกรูปแบบ (ไม่ใส่ก็ได้)</div>
+  <textarea id="modalExclude" rows="1" placeholder="เช่น 4444 หรือเลขที่จองได้แล้ว" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
+  <div class="hint" style="margin-top:8px">ลบออกจากรายการ (ไม่ต้องใส่ก็ได้)</div>
   <textarea id="modalRemove" rows="1" placeholder="เช่น 15" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
   <div class="hint" style="margin-top:6px">bot จะเช็คให้: ซ้ำใน wishlist · มีคนในเซิร์ฟเวอร์เล็งไว้แล้ว · เปิดจองวันไหนในสัปดาห์นี้ · ช่วงนั้นผ่านไปแล้วหรือยัง<br><b style="color:#f59e0b">เช็คไม่ได้:</b> ถูกจองในระบบขนส่งแล้วหรือยัง (ต้องล็อกอิน ThaID ดูเอง)</div>
   <div class="actions"><button class="btn s" id="modalCancel">ยกเลิก</button><button class="btn p" id="modalOk">เพิ่ม</button></div>
@@ -180,6 +182,7 @@ function sample() {
   ];
   const reasons = new Map();
   for (let n = from; n <= to; n++) {
+    if (EXCLUDED.has(n)) continue;
     const why = [];
     if (wanted.has(n)) why.push('เลขที่ระบุไว้');
     for (const p of patterns) if (p.re.test(String(n))) why.push(p.name);
@@ -328,7 +331,7 @@ function render() {
 const BTNS = [
   { cls: 'p', act: 'add', label: '🔢 กรอกเลขที่อยากจอง', json: { type: 2, style: 1, custom_id: 'add_number', label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } } },
   { cls: 's', act: 'wishlist', label: '📋 เลขที่เฝ้าอยู่', json: { type: 2, style: 2, custom_id: 'show_wishlist', label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } } },
-  { cls: 's', act: 'history', label: '📜 ดูประวัติแชต', json: { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } } },
+  { cls: 's', act: 'share', label: '📤 แชร์เลข', json: { type: 2, style: 2, custom_id: 'share_text', label: 'แชร์เลข', emoji: { name: '📤' } } },
   { cls: 'd', act: 'clear', label: '🧹 ลบประวัติแชตเก่า', json: { type: 2, style: 4, custom_id: 'clear_history', label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } } },
   { cls: 'l', href: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: '🌐 เข้าสู่เว็บไซต์ ↗', json: { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } },
 ];
@@ -337,9 +340,10 @@ const CMDS = [
   { cls: 's', act: 'cmd_match', label: '🎯 เลขในฝันรอบนี้', json: { type: 2, style: 2, custom_id: 'cmd_match', label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } } },
   { cls: 'p', act: 'cmd_check', label: '🔄 เช็คตอนนี้', json: { type: 2, style: 1, custom_id: 'cmd_check', label: 'เช็คตอนนี้', emoji: { name: '🔄' } } },
   { cls: 's', act: 'cmd_status', label: '🧭 สถานะ bot', json: { type: 2, style: 2, custom_id: 'cmd_status', label: 'สถานะ bot', emoji: { name: '🧭' } } },
+  { cls: 's', act: 'history', label: '📜 ดูประวัติแชต', json: { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } } },
   { cls: 's', act: 'cmd_guide', label: '❓ คู่มือ', json: { type: 2, style: 2, custom_id: 'cmd_guide', label: 'คู่มือ', emoji: { name: '❓' } } },
 ];
-function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; return $('btnLayout').value === '2x2' ? [set.slice(0, 2), set.slice(2, 4), ...(set.length > 4 ? [set.slice(4)] : [])] : [set]; }
+function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; const per = $('btnLayout').value === '2x2' ? 2 : set.length > 5 ? 3 : 5; return Array.from({ length: Math.ceil(set.length / per) }, (_, i) => set.slice(i * per, i * per + per)); }
 const CMD_OUT = {
   cmd_schedule: () => embedBox(weekEmbed({ title: '📅 ตารางเปิดจองสัปดาห์นี้', today: $('today').value, mark: true })),
   cmd_schedule_legacy: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),
@@ -367,12 +371,19 @@ document.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-act]'); if (!b) return;
   if (b.dataset.act.startsWith('cmd_')) { const out = CMD_OUT[b.dataset.act](); return ephemeral(out.startsWith('<div') ? out : out.replace(/\n/g, '<br>')); }
   if (b.dataset.act === 'add') { $('modalBg').style.display = 'grid'; $('modalNum').value = ''; $('modalNum').focus(); }
+  if (b.dataset.act === 'share') {
+    const e = buildEmbed();
+    const plain = (s) => s.replace(/\*\*/g, '').replace(/`/g, '').replace(/^-# .*$/gm, '').trim();
+    const text = [plain(e.title), e.description ? plain(e.description) : '', ...(e.fields ?? []).map((f) => { const v = plain(f.value); return v.includes('\n') ? `${plain(f.name)}:\n${v}` : `${plain(f.name)}: ${v}`; })].filter(Boolean).join('\n');
+    return ephemeral(`📤 คัดลอกได้เลย (ชี้เมาส์ที่กล่อง → ปุ่มคัดลอกมุมขวาบน · มือถือกดค้าง)<pre style="margin:6px 0 0;white-space:pre-wrap;position:relative">${esc(text)}<button class="btn s" style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:12px" onclick="navigator.clipboard?.writeText(this.parentNode.innerText.replace(/คัดลอก$/,'').trim());this.textContent='คัดลอกแล้ว ✓'">คัดลอก</button></pre>`);
+  }
   if (b.dataset.act === 'wishlist') {
     const list = $('wanted').value.split(',').map((x) => +x.trim()).filter(Boolean);
     const st = (n) => { const slot = WEEK.find((w) => n >= w.from && n <= w.to); if (!slot) return '🔭 ยังไม่ถึงคิว'; const d = daysBetween($('today').value, slot.openDate); return d < 0 ? `⏪ เปิดไปแล้ว ${fmtShort(slot.openDate)}` : d === 0 ? `🔥 เปิด**วันนี้** ${slot.prefix}` : `⏳ ${fmtShort(slot.openDate)} ${slot.prefix} (อีก ${d} วัน)`; };
     return ephemeral(embedBox({ title: '📋 เลขที่เฝ้าอยู่', color: 0x3b82f6, description: `${LABEL.car}\n🔭 ยังไม่ถึงคิว · ⏳ กำลังมา · 🔥 วันนี้ · ⏪ เปิดไปแล้ว`,
       fields: [{ name: `เลขที่ระบุไว้ (${list.length})`, value: list.length ? list.map((n) => `\`${n}\` ${st(n)}${CLAIMED[n] ? ` · 👤 ${CLAIMED[n]}` : ''}`).join('\n') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
-        { name: 'รูปแบบเลขที่เฝ้า (2)', value: '• เลขตอง (555 / 5555)\n• เลขคู่สลับ (5050)', inline: true }],
+        { name: 'รูปแบบเลขที่เฝ้า (2)', value: '• เลขตอง (555 / 5555)\n• เลขคู่สลับ (5050)', inline: true },
+        ...(EXCLUDED.size ? [{ name: `🚫 ไม่อยากได้ (${EXCLUDED.size})`, value: [...EXCLUDED].sort((a, b) => a - b).map((n) => `\`${n}\``).join(' ') + '\n-# ตัดออกจากทุกรูปแบบ · เอากลับด้วยการใส่ในช่องเพิ่ม' }] : [])],
       footer: { text: 'กรอกผิด → กด 🔢 แล้วใส่เลขในช่อง "ลบ" · รูปแบบเลขแก้ได้ใน watch.config.json' } }));
   }
   if (b.dataset.act === 'history') ephemeral(`<b>แจ้งไปแล้ว ${state.notified.length} รายการ (ล่าสุดก่อน)</b><br>${[...state.notified].reverse().map(describe).join('<br>')}`);
@@ -386,6 +397,7 @@ const WEEK = [
   { prefix: '8ขฉ', from: 5001, to: 6500, openDate: '2026-09-18' },
 ];
 const CLAIMED = { 5151: 'somchai', 9999: 'nok' };
+const EXCLUDED = new Set([4444]); // เลขที่ไม่อยากได้ (จำลอง) — ตัดออกจากทุกรูปแบบ
 const PATTERN_RULES = [{ name: 'เลขตอง (555 / 5555)', re: /^(\d)\1{2,3}$/ }, { name: 'เลขคู่สลับ (5050)', re: /^(\d)(\d)\1\2$/ }];
 const coveredHint = (n) => { const hits = PATTERN_RULES.filter((p) => p.re.test(String(n))).map((p) => p.name); return hits.length ? `<br>&nbsp;&nbsp; ↳ 💡 เลขนี้ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "${hits.join('", "')}" ไม่ใส่ก็แจ้งเตือนอยู่ดี` : ''; };
 function checkNumber(n, list, today) {
@@ -403,12 +415,14 @@ $('modalOk').onclick = () => {
   $('modalBg').style.display = 'none';
   const nums = [...new Set($('modalNum').value.split(/[\s,]+/).filter(Boolean).map(Number))];
   const removes = [...new Set($('modalRemove').value.split(/[\s,]+/).filter(Boolean).map(Number))];
-  if (!nums.length && !removes.length) return ephemeral('❌ ยังไม่ได้ใส่เลข');
+  const excludes = [...new Set($('modalExclude').value.split(/[\s,]+/).filter(Boolean).map(Number))];
+  if (!nums.length && !removes.length && !excludes.length) return ephemeral('❌ ยังไม่ได้ใส่เลข');
   let list = $('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean);
   const results = [];
   for (const n of removes) { if (list.includes(n)) { list = list.filter((x) => x !== n); results.push({ icon: '🗑️', text: `<b>${n}</b> ลบออกจาก wishlist แล้ว` }); } else results.push({ icon: '❔', text: `<b>${n}</b> ไม่มีใน wishlist อยู่แล้ว` }); }
-  for (const n of nums) { const r = checkNumber(n, list, $('today').value); if (r.add) list = [...list, n]; results.push(r); }
-  $('modalRemove').value = '';
+  for (const n of excludes) { EXCLUDED.add(n); list = list.filter((x) => x !== n); results.push({ icon: '🚫', text: `<b>${n}</b> ใส่รายการไม่อยากได้แล้ว · จะไม่แจ้งเลขนี้ไม่ว่าตรงรูปแบบไหน` }); }
+  for (const n of nums) { if (EXCLUDED.has(n)) { EXCLUDED.delete(n); results.push({ icon: '♻️', text: `<b>${n}</b> เอาออกจากรายการไม่อยากได้แล้ว (กลับมาเฝ้า)` }); } const r = checkNumber(n, list, $('today').value); if (r.add) list = [...list, n]; results.push(r); }
+  $('modalRemove').value = ''; $('modalExclude').value = '';
   $('wanted').value = [...new Set(list)].sort((a, b) => a - b).join(', '); render();
   ephemeral(`${results.map((r) => `${r.icon} ${r.text}`).join('<br>')}<br><br><b>📋 เลขที่เฝ้าอยู่ตอนนี้ (${list.length}):</b> ${[...new Set(list)].sort((a, b) => a - b).map((n) => `<code>${n}</code>`).join(' ')}<br><small>กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองยังต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง</small>`);
 };

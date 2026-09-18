@@ -2,13 +2,13 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { coveredBy, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { coveredBy, embedToText, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
 import { loadState } from '../src/state.js';
 
 describe('buttonRow', () => {
   it('มี 4 ปุ่มตามที่ร่างไว้ และปุ่มสุดท้ายเป็นลิงก์ไปหน้าจองของขนส่ง', () => {
     const row = buttonRow();
-    expect(row.components.map((c) => c.label)).toEqual(['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์']);
+    expect(row.components.map((c) => c.label)).toEqual(['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'แชร์เลข', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์']);
     expect(row.components.length).toBeLessThanOrEqual(5);
     const link = row.components[4] as { style: number; url?: string };
     expect(link.style).toBe(5);
@@ -20,13 +20,13 @@ describe('การจัดแถวปุ่ม', () => {
   it('ค่าเริ่มต้นแถวเดียว (Discord ยืดปุ่มเต็มแถวไม่ได้ แยกแถวแล้วขอบไม่ตรง)', () => {
     delete process.env.DISCORD_BUTTONS_PER_ROW;
     expect(buttonRows().map((r) => r.components.length)).toEqual([5]);
-    expect(commandRows().map((r) => r.components.length)).toEqual([5]);
+    expect(commandRows().map((r) => r.components.length)).toEqual([3, 3]); // 6 ปุ่ม → 3+3
     expect(buttonRows().every((r) => r.type === 1)).toBe(true);
   });
   it('DISCORD_BUTTONS_PER_ROW=2 → 2+2 และ 2+2+1', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '2';
     expect(buttonRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
-    expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
+    expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 2]);
     delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
   it('ค่าเพี้ยน → กลับไปแถวเดียว', () => {
@@ -44,15 +44,25 @@ describe('ข้อความใน modal อยู่ในลิมิต Di
     expect(MODAL_TEXT.removeLabel.length).toBeLessThanOrEqual(DISCORD_LIMITS.inputLabel);
     expect(MODAL_TEXT.addPlaceholder.length).toBeLessThanOrEqual(DISCORD_LIMITS.placeholder);
     expect(MODAL_TEXT.removePlaceholder.length).toBeLessThanOrEqual(DISCORD_LIMITS.placeholder);
+    expect(MODAL_TEXT.excludeLabel.length).toBeLessThanOrEqual(DISCORD_LIMITS.inputLabel);
+    expect(MODAL_TEXT.excludePlaceholder.length).toBeLessThanOrEqual(DISCORD_LIMITS.placeholder);
+  });
+});
+
+describe('embedToText — สำหรับปุ่ม 📤 แชร์เลข', () => {
+  it('ตัด markdown และเรียง field เป็นบรรทัดอ่านง่าย', () => {
+    const text = embedToText({ title: '🎯 เลขที่เล็งไว้จะเปิดจอง ศุกร์ 18 กันยายน 2569', description: 'รถเก๋ง\nช่วงที่เปิด: **8ขฉ** 5001 – 6500', fields: [{ name: 'เลขตอง (1)', value: '`8ขฉ 5555`' }, { name: 'เลขคู่สลับ (2)', value: '`8ขฉ 5050`  `8ขฉ 5151`\n`8ขฉ 5252`' }, { name: 'เปิดจอง', value: '10:00 – 16:00 น.' }] });
+    expect(text).toBe('🎯 เลขที่เล็งไว้จะเปิดจอง ศุกร์ 18 กันยายน 2569\nรถเก๋ง\nช่วงที่เปิด: 8ขฉ 5001 – 6500\nเลขตอง (1): 8ขฉ 5555\nเลขคู่สลับ (2):\n8ขฉ 5050  8ขฉ 5151\n8ขฉ 5252\nเปิดจอง: 10:00 – 16:00 น.');
+    expect(text).not.toContain('**');
   });
 });
 
 describe('commandRow', () => {
   it('ปุ่มลัด 4 คำสั่ง custom_id ขึ้นต้น cmd_ ทั้งหมด', () => {
     const row = commandRow();
-    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'คู่มือ']);
-    expect(row.components.length).toBeLessThanOrEqual(5); // ลิมิตต่อแถวของ Discord
-    expect(row.components.every((c) => 'custom_id' in c && c.custom_id.startsWith('cmd_'))).toBe(true);
+    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'ดูประวัติแชต', 'คู่มือ']);
+    // ปุ่มคำสั่งขึ้นต้น cmd_ (bot ส่งไป handler ตามชื่อ) · ยกเว้น 📜 ที่ย้ายมาจากแถวแจ้งเตือน
+    expect(row.components.every((c) => 'custom_id' in c && (c.custom_id.startsWith('cmd_') || c.custom_id === 'show_history'))).toBe(true);
   });
   it('clampReply ตัดให้ไม่เกินลิมิต Discord', () => {
     expect(clampReply('x'.repeat(3000)).length).toBeLessThanOrEqual(2000);
@@ -78,7 +88,7 @@ describe('updateWishlist', () => {
   it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', async () => {
     const { path } = await tmpConfig();
     const c = await updateWishlist(path, [5555, 9999, 15], []);
-    expect(c).toEqual({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999] });
+    expect(c).toMatchObject({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999], exclude: [] });
     expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([15, 5555, 9999]);
   });
   it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', async () => {
@@ -87,6 +97,16 @@ describe('updateWishlist', () => {
     const c = await updateWishlist(path, [], [15, 42]);
     expect(c).toMatchObject({ removed: [15], notFound: [42], total: 1 });
     expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([9999]);
+  });
+  it('ไม่อยากได้: ย้ายออกจากอยากได้ · ลบได้ · เพิ่มกลับได้', async () => {
+    const { path } = await tmpConfig();
+    let c = await updateWishlist(path, [], [], [9999, 4444]);
+    expect(c).toMatchObject({ excluded: [9999, 4444], numbers: [], exclude: [4444, 9999], total: 0 });
+    c = await updateWishlist(path, [], [], [4444]);
+    expect(c.alreadyExcluded).toEqual([4444]);
+    c = await updateWishlist(path, [9999], [4444], []);
+    expect(c).toMatchObject({ added: [9999], unexcluded: [9999], removed: [4444], exclude: [], numbers: [9999] });
+    expect(JSON.parse(await readFile(path, 'utf8')).wishlist).toMatchObject({ numbers: [9999], exclude: [] });
   });
   it('ไม่มีอะไรเปลี่ยน → ไม่เขียนไฟล์', async () => {
     const { path } = await tmpConfig();
@@ -115,13 +135,15 @@ describe('เจ้าของเลข + ข้อความสรุป', (
     expect(describeNumber(15, entries, '2026-09-15')).toContain('ยังไม่อยู่ในตาราง');
   });
   it('wishlistChangeText มีบรรทัดต่อเลขและเตือนเจ้าของเดิม', () => {
-    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3, numbers: [5555, 6000, 9999] }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
+    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3, numbers: [5555, 6000, 9999], excluded: [4444], alreadyExcluded: [], unexcluded: [], exclude: [4444] }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
     expect(text).toContain('✅ **5555** เพิ่มแล้ว');
     expect(text).toContain('somchai เล็งไว้ก่อนแล้ว');
     expect(text).toContain('🗑️ **15**');
     expect(text).toContain('❔ **42**');
     expect(text).toContain('❌ "abc"');
     expect(text).toContain('เลขที่เฝ้าอยู่ตอนนี้ (3):** `5555` `6000` `9999`');
+    expect(text).toContain('🚫 **4444** ใส่รายการไม่อยากได้แล้ว');
+    expect(text).toContain('ไม่อยากได้ (1):** `4444`');
   });
 });
 
@@ -136,7 +158,7 @@ describe('เตือนเลขที่ pattern ครอบอยู่แ�
   });
   it('wishlistChangeText ใส่คำเตือนเฉพาะเลขที่ถูกครอบ', () => {
     const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }];
-    const text = wishlistChangeText({ added: [5555, 1234], already: [], removed: [], notFound: [], total: 2, numbers: [1234, 5555] }, [], {}, 'nok', entries, '2026-09-15', rules);
+    const text = wishlistChangeText({ added: [5555, 1234], already: [], removed: [], notFound: [], total: 2, numbers: [1234, 5555], excluded: [], alreadyExcluded: [], unexcluded: [], exclude: [] }, [], {}, 'nok', entries, '2026-09-15', rules);
     expect(text).toContain('**5555** เพิ่มแล้ว');
     expect(text).toContain('ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "เลขตอง", "คู่สลับ"');
     expect(text.split('💡')).toHaveLength(2); // 1234 ไม่โดนเตือน

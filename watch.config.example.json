@@ -19,7 +19,10 @@
         "regex": "^(\\d)(\\d)\\1\\2$"
       }
     ],
-    "digitSums": []
+    "digitSums": [],
+    "exclude": [
+      4444
+    ]
   },
   "reminders": {
     "daysBeforeOpen": [

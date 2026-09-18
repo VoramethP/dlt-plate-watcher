@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, embedToText, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -133,8 +133,12 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
         const remove = new TextInputBuilder()
           .setCustomId(MODAL.removeField).setLabel(MODAL_TEXT.removeLabel).setStyle(TextInputStyle.Paragraph)
           .setPlaceholder(MODAL_TEXT.removePlaceholder).setMaxLength(300).setRequired(false);
+        const exclude = new TextInputBuilder()
+          .setCustomId(MODAL.excludeField).setLabel(MODAL_TEXT.excludeLabel).setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder(MODAL_TEXT.excludePlaceholder).setMaxLength(300).setRequired(false);
         modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(add),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(exclude),
           new ActionRowBuilder<TextInputBuilder>().addComponents(remove),
         );
         await i.showModal(modal);
@@ -145,6 +149,13 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
         await i.deferReply(ephemeral);
         const state = await loadState(opts.statePath);
         await i.editReply({ embeds: [await opts.wishlist(state.owners ?? {})] });
+        return;
+      }
+      case BUTTON.share: {
+        // ข้อความล้วนใน code block → desktop มีปุ่มคัดลอกมุมขวาบน · มือถือกดค้างเลือกคัดลอก
+        const text = i.message.embeds.map((e) => embedToText({ title: e.title, description: e.description, fields: e.fields })).filter(Boolean).join('\n\n') || '(ข้อความนี้ไม่มีเนื้อหาให้คัดลอก)';
+        const body = '```\n' + text.slice(0, 1800) + '\n```';
+        await i.reply({ content: `📤 คัดลอกได้เลย (ชี้เมาส์ที่กล่อง → ปุ่มคัดลอกมุมขวาบน · มือถือกดค้าง)\n${body}`, ...ephemeral });
         return;
       }
       case BUTTON.showHistory: {
@@ -165,12 +176,13 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     await i.deferReply(ephemeral); // อาจต้องโหลดตารางเพื่อบอกวันเปิด
     const add = parseNumbers(i.fields.getTextInputValue(MODAL.field) ?? '');
     const remove = parseNumbers(i.fields.getTextInputValue(MODAL.removeField) ?? '');
-    const change = await updateWishlist(opts.configPath, add.valid, remove.valid);
+    const exclude = parseNumbers(i.fields.getTextInputValue(MODAL.excludeField) ?? '');
+    const change = await updateWishlist(opts.configPath, add.valid, remove.valid, exclude.valid);
     const user = i.user.displayName || i.user.username;
-    const ownersBefore = await updateOwners(opts.statePath, user, change.added, change.removed);
+    const ownersBefore = await updateOwners(opts.statePath, user, change.added, [...change.removed, ...change.excluded]);
     const entries = opts.myEntries ? await opts.myEntries().catch(() => []) : [];
     const rules = await readPatternRules(opts.configPath).catch(() => ({ patterns: [], digitSums: [] }));
-    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok(), rules)));
+    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...exclude.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok(), rules)));
   }
 }
 

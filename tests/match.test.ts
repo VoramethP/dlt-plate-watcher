@@ -24,6 +24,10 @@ describe('matchEntry', () => {
     const m = matchEntry(entry, { numbers: [9999], patterns: [{ name: 'เลขตอง', regex: '^(\\d)\\1{3}$' }], digitSums: [36] });
     expect(m?.reasons.get(9999)).toHaveLength(3);
   });
+  it('exclude ตัดเลขออกแม้ตรง pattern หรือระบุไว้', () => {
+    const m = matchEntry(entry, { numbers: [9999, 8888], patterns: [{ name: 'เลขตอง', regex: '^(\\d)\\1{3}$' }], digitSums: [], exclude: [9999] });
+    expect(m?.numbers).toEqual([8888]);
+  });
   it('null เมื่อไม่มีอะไรตรง', () => {
     expect(matchEntry(entry, { numbers: [1], patterns: [], digitSums: [] })).toBeNull();
   });

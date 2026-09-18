@@ -25,6 +25,8 @@ export const ConfigSchema = z.object({
     ).default([]),
     /** ผลรวมเลขที่อยากได้ เช่น 9, 19, 24 */
     digitSums: z.array(z.number().int().min(1).max(36)).default([]),
+    /** เลขที่ไม่อยากได้ — ตัดออกจากทุกเงื่อนไขข้างบน (เช่น จองได้แล้ว หรือ pattern จับได้แต่ไม่ชอบ) */
+    exclude: z.array(z.number().int().min(1).max(9999)).default([]),
   }),
   reminders: z.object({
     daysBeforeOpen: z.array(z.number().int().min(0)).default([1]),
