@@ -2,16 +2,19 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { adjacentPairs, groupNumbersByMeaning, loadNumerology, meaningLine, meaningOf, plateSum } from '../src/numerology.js';
+import { adjacentPairs, bestSumNumbers, groupNumbersByMeaning, loadNumerology, meaningLine, meaningOf, plateSum } from '../src/numerology.js';
 import { matchEmbed } from '../src/notify/discord.js';
 import { matchEntry } from '../src/match.js';
 
 const table = {
+  sources: [{ id: 'a', name: 'A', url: 'x' }, { id: 'b', name: 'B', url: 'y' }],
   includePrefix: true,
   letterValues: { ข: 2, ฉ: 5 },
+  sumGrades: { '35': { grade: 'ดีมาก', sources: ['a', 'b'], meaning: 'ทดสอบ' }, '20': { grade: 'ไม่ดีนัก', sources: ['a'], conflict: { ดี: ['a'] } } },
   groups: [
-    { emoji: '💰', name: 'สายการเงิน', sums: [35], pairs: ['56'] },
-    { emoji: '🙏', name: 'สายเมตตา', sums: [15], pairs: ['15', '51'] },
+    { emoji: '💰', name: 'การเงิน', kind: 'good' as const, sums: [], pairs: ['56'], pairSources: { '56': ['a', 'b'] } },
+    { emoji: '🙏', name: 'เมตตา', kind: 'good' as const, sums: [], pairs: ['15', '51'], pairSources: { '15': ['a'] } },
+    { emoji: '⚠️', name: 'ควรเลี่ยง', kind: 'avoid' as const, sums: [], pairs: ['13'], pairSources: { '13': ['a', 'b'] } },
   ],
 };
 
@@ -21,34 +24,46 @@ describe('เลขศาสตร์', () => {
     expect(plateSum('8ขฉ', 5555, { ...table, includePrefix: false })).toBe(20);
   });
   it('adjacentPairs', () => expect(adjacentPairs(2456)).toEqual(['24', '45', '56']));
-  it('meaningOf เข้าได้หลายสาย และบอกเหตุผล', () => {
-    const m = meaningOf('8ขฉ', 5555, table); // ผลรวม 35
-    expect(m.sum).toBe(35);
-    expect(m.groups.map((g) => g.group.name)).toEqual(['สายการเงิน']);
-    expect(m.groups[0].via).toEqual(['ผลรวม 35']);
-    const both = meaningOf('8ขฉ', 1556, table); // ผลรวม 8+2+5+17=32 ไม่เข้า · คู่ 15 → เมตตา · คู่ 56 → การเงิน
-    expect(both.groups.map((g) => g.group.name)).toEqual(['สายการเงิน', 'สายเมตตา']);
-    expect(meaningLine('8ขฉ', 1234, table)).toBe('');
-    expect(meaningLine('8ขฉ', 5555, table)).toBe('💰 สายการเงิน (ผลรวม 35)');
+  it('meaningOf: กลุ่มจากคู่เลข + จำนวนแหล่ง + เกรดผลรวม', () => {
+    const m = meaningOf('8ขฉ', 1556, table); // ผลรวม 32 · คู่ 15, 55, 56
+    expect(m.groups.map((g) => [g.group.name, g.votes])).toEqual([['การเงิน', 2], ['เมตตา', 1]]);
+    expect(m.sumGrade).toBeUndefined();
+    expect(meaningOf('8ขฉ', 5555, table).sumGrade).toMatchObject({ grade: 'ดีมาก', sources: ['a', 'b'] });
   });
-  it('groupNumbersByMeaning จัดกลุ่มตามสาย', () => {
-    const g = groupNumbersByMeaning('8ขฉ', [5555, 1556, 1234], table);
-    expect(g.map((x) => [x.group.name, x.numbers])).toEqual([['สายการเงิน', [5555, 1556]], ['สายเมตตา', [1556]]]);
+  it('meaningLine อ่านง่ายและบอกจำนวนแหล่ง', () => {
+    expect(meaningLine('8ขฉ', 5555, table)).toBe('ผลรวม 35 = ดีมาก · ทดสอบ · 2 แหล่งตรงกัน');
+    expect(meaningLine('8ขฉ', 1556, table)).toBe('💰 การเงิน (คู่เลข 56 · 2 แหล่งตรงกัน) / 🙏 เมตตา (คู่เลข 15 · 1 แหล่ง) / ผลรวม 32 ไม่อยู่ในตาราง');
+    expect(meaningLine('8ขฉ', 1234, { ...table, groups: [], sumGrades: {} })).toBe('');
   });
-  it('matchEmbed ใส่ field 🔮 เฉพาะเมื่อมีตารางและมีเลขเข้าสาย', () => {
+  it('groupNumbersByMeaning: กลุ่มควรเลี่ยงไปท้ายสุด', () => {
+    const g = groupNumbersByMeaning('8ขฉ', [1313, 5656], table);
+    expect(g.map((x) => x.group.name)).toEqual(['การเงิน', 'ควรเลี่ยง']);
+  });
+  it('bestSumNumbers เฉพาะผลรวมดีมาก', () => {
+    expect(bestSumNumbers('8ขฉ', [5555, 5000], table)).toEqual([{ n: 5555, sum: 35 }]);
+  });
+  it('matchEmbed ใส่ field 🔮 เฉพาะเมื่อมีตารางและมีอะไรจะบอก', () => {
     const entry = { vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' };
-    const m = matchEntry(entry, { numbers: [5555, 6000], patterns: [], digitSums: [], exclude: [] })!;
+    const m = matchEntry(entry, { numbers: [5555, 5656], patterns: [], digitSums: [], exclude: [] })!;
     expect(JSON.stringify(matchEmbed(m))).not.toContain('🔮');
     const json = JSON.stringify(matchEmbed(m, table));
-    expect(json).toContain('🔮 ความหมาย');
-    expect(json).toContain('💰 **สายการเงิน**');
+    expect(json).toContain('🔮 เลขศาสตร์ (รวบรวมจาก 2 แหล่ง');
+    expect(json).toContain('⭐ **ผลรวมทั้งป้ายระดับดีมาก**');
+    expect(json).toContain('💰 **การเงิน**');
   });
-  it('loadNumerology: ไม่มีไฟล์ → ว่าง · ไฟล์จริงในโปรเจกต์อ่านได้และมี 3 สาย', async () => {
+  it('numerology.json จริง: อ่านได้ มีแหล่งอ้างอิง และตารางตัวอักษรตรงกับแหล่ง', async () => {
+    const real = await loadNumerology('numerology.json');
+    expect(real.sources.length).toBe(6);
+    expect(real.groups.length).toBe(5);
+    expect(real.letterValues['ก']).toBe(1); expect(real.letterValues['ต']).toBe(3); expect(real.letterValues['ฐ']).toBe(9);
+    expect(real.sumGrades['24']).toMatchObject({ grade: 'ดีมาก', sources: ['sanook', 'autospinn-sum'] });
+    expect(real.sumGrades['20'].conflict).toBeDefined();
+    expect(real.groups.find((g) => g.kind === 'avoid')?.pairs).toContain('13');
+    for (const g of real.groups) for (const p of g.pairs) expect(g.pairSources[p]?.length).toBeGreaterThan(0);
+  });
+  it('loadNumerology: ไม่มีไฟล์ → ว่าง · ไฟล์เพี้ยน → error', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
     expect((await loadNumerology(join(dir, 'none.json'))).groups).toEqual([]);
-    const real = await loadNumerology('numerology.json');
-    expect(real.groups.length).toBeGreaterThanOrEqual(3);
-    expect(real.letterValues['ข']).toBe(2);
     await writeFile(join(dir, 'bad.json'), JSON.stringify({ groups: [{ name: '', pairs: ['abc'] }] }));
     await expect(loadNumerology(join(dir, 'bad.json'))).rejects.toThrow('ไม่ถูกต้อง');
   });

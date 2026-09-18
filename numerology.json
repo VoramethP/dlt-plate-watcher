@@ -1,17 +1,838 @@
 {
-  "_อ่านก่อน": "ตารางเลขศาสตร์ — ค่าเริ่มต้นเป็นความเชื่อทั่วไป ไม่ใช่ข้อเท็จจริง แก้ให้ตรงตำราที่คุณเชื่อได้ทุกช่อง · bot อ่านไฟล์นี้ใหม่ทุกครั้ง ไม่ต้องรีสตาร์ต",
-  "includePrefix": true,
-  "_includePrefix": "true = ผลรวมนับค่าของตัวอักษรหมวดด้วย (8ขฉ 5555 → 8+2+5+5+5+5+5 = 35) · false = นับเฉพาะเลข 4 หลัก",
-  "letterValues": {
-    "ก": 1, "ข": 2, "ฃ": 2, "ค": 4, "ฅ": 4, "ฆ": 2, "ง": 2, "จ": 6, "ฉ": 5, "ช": 2, "ซ": 7, "ฌ": 5, "ญ": 7,
-    "ฎ": 1, "ฏ": 1, "ฐ": 9, "ฑ": 4, "ฒ": 6, "ณ": 5, "ด": 4, "ต": 4, "ถ": 1, "ท": 6, "ธ": 4, "น": 5, "บ": 2,
-    "ป": 8, "ผ": 8, "ฝ": 8, "พ": 8, "ฟ": 8, "ภ": 1, "ม": 5, "ย": 8, "ร": 4, "ล": 6, "ว": 6, "ศ": 7, "ษ": 5,
-    "ส": 7, "ห": 5, "ฬ": 5, "อ": 6, "ฮ": 5
-  },
-  "groups": [
-    { "emoji": "💰", "name": "สายการเงิน วาจาเจรจา และโชคลาภ", "sums": [24, 42, 36, 63, 56, 65], "pairs": ["24", "42", "36", "63", "56", "65"] },
-    { "emoji": "🙏", "name": "สายผู้ใหญ่เมตตา ปัญญา และความก้าวหน้า", "sums": [15, 51, 14, 41, 19, 91, 59, 95], "pairs": ["15", "51", "14", "41", "19", "91", "59", "95"] },
-    { "emoji": "⚖️", "name": "สายสมดุลรอบด้าน (ปัญญา + เมตตา + ทรัพย์)", "sums": [45, 54, 46, 64, 23, 32, 55], "pairs": ["45", "54", "46", "64", "23", "32"] }
+  "_อ่านก่อน": "ตารางเลขศาสตร์ทะเบียนรถ รวบรวมจากแหล่งเผยแพร่สาธารณะ 6 แหล่ง (ดู sources) เมื่อ 2026-09-18 · แต่ละรายการบอกว่ามาจากแหล่งไหนบ้าง · ยังคงเป็นความเชื่อ ไม่ใช่ข้อเท็จจริง · แก้ได้ทุกช่อง bot อ่านใหม่ทุกครั้ง",
+  "sources": [
+    {
+      "id": "sanook",
+      "name": "Sanook Auto — ผลรวมเลขทะเบียนมงคล",
+      "url": "https://www.sanook.com/auto/89383/"
+    },
+    {
+      "id": "autospinn-sum",
+      "name": "Autospinn — เลขทะเบียนรถมงคล 2568 (ผลรวม + ค่าตัวอักษร)",
+      "url": "https://www.autospinn.com/2024/07/lucky-thai-plate-numbers-137706"
+    },
+    {
+      "id": "autospinn-pair",
+      "name": "Autospinn — เลขคู่ป้ายทะเบียนรถมีความหมายว่าอะไร",
+      "url": "https://www.autospinn.com/2024/05/even-numbers-license-plate-136898"
+    },
+    {
+      "id": "tqm",
+      "name": "TQM — เปิดสูตรคำนวณเลขทะเบียนรถ",
+      "url": "https://www.tqm.co.th/articles/หมีรักรถ/เปิดสูตรคำนวณเลขทะเบียนรถ"
+    },
+    {
+      "id": "tabiendee",
+      "name": "ทะเบียนดี ดอท คอม — ค่าตัวอักษรและความหมายผลรวม",
+      "url": "https://www.tabiendee.com/article_01.php"
+    },
+    {
+      "id": "berded",
+      "name": "Berded — ความหมายคู่เลขมงคล (เลขศาสตร์เดียวกับเบอร์มือถือ)",
+      "url": "https://www.berded.in.th/article-562.php"
+    }
   ],
-  "_groups": "sums = ผลรวมทั้งป้ายที่เข้าสาย · pairs = คู่เลขที่ติดกันในเลข 4 หลัก (เช่น 2456 มีคู่ 24, 45, 56) · เลขหนึ่งอาจเข้าหลายสาย"
+  "method": "ผลรวม = เลขนำหมวด + ค่าตัวอักษรทั้งสองตัว + เลข 4 หลัก (ทุกแหล่งใช้วิธีนี้กับตารางผลรวมสองหลัก) · คู่เลข = เลขสองหลักที่ติดกันในเลข 4 หลัก เช่น 2456 → 24, 45, 56 · เลขหนึ่งเข้าได้หลายกลุ่ม",
+  "includePrefix": true,
+  "letterValues": {
+    "ก": 1,
+    "ด": 1,
+    "ถ": 1,
+    "ท": 1,
+    "ภ": 1,
+    "ฤ": 1,
+    "ข": 2,
+    "บ": 2,
+    "ป": 2,
+    "ง": 2,
+    "ช": 2,
+    "ต": 3,
+    "ฑ": 3,
+    "ฒ": 3,
+    "ฆ": 3,
+    "ค": 4,
+    "ธ": 4,
+    "ร": 4,
+    "ญ": 4,
+    "ษ": 4,
+    "ฉ": 5,
+    "ณ": 5,
+    "ฌ": 5,
+    "น": 5,
+    "ม": 5,
+    "ห": 5,
+    "ฮ": 5,
+    "ฎ": 5,
+    "ฬ": 5,
+    "จ": 6,
+    "ล": 6,
+    "ว": 6,
+    "อ": 6,
+    "ซ": 7,
+    "ศ": 7,
+    "ส": 7,
+    "ย": 8,
+    "ผ": 8,
+    "ฝ": 8,
+    "พ": 8,
+    "ฟ": 8,
+    "ฏ": 9,
+    "ฐ": 9
+  },
+  "_letterValues": "3 แหล่งตรงกันทุกตัว (autospinn-sum, tabiendee, tqm)",
+  "sumGrades": {
+    "2": {
+      "meaning": "ดาวจันทร์ เสน่ห์ อ่อนโยน (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "3": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "4": {
+      "meaning": "ดาวพุธ การค้า การเจรจา (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "5": {
+      "meaning": "ดาวพฤหัสบดี ปัญญา ความน่าเชื่อถือ (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "6": {
+      "meaning": "ดาวศุกร์ การเงิน ความรัก อุปถัมภ์ (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "7": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "9": {
+      "meaning": "ดาวพระเกตุ คุ้มครอง แคล้วคลาด (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "11": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "12": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "14": {
+      "meaning": "ผู้ยิ่งใหญ่ ประสบความสำเร็จสูง (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "15": {
+      "meaning": "ความสุนทรี เสน่ห์ มีคนช่วยเหลือ (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "17": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "19": {
+      "meaning": "ผู้เสวยสุข โชคดี (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "20": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ],
+      "conflict": {
+        "ดี": [
+          "sanook"
+        ]
+      }
+    },
+    "21": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "23": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "24": {
+      "meaning": "สมบูรณ์สุข (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "27": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "29": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "30": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "32": {
+      "grade": "ดี",
+      "sources": [
+        "sanook"
+      ],
+      "conflict": {
+        "ดีมาก": [
+          "autospinn-sum"
+        ]
+      }
+    },
+    "33": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "34": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "36": {
+      "meaning": "สื่อแห่งความรัก โชคดี (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "37": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "40": {
+      "grade": "ดี",
+      "sources": [
+        "sanook"
+      ],
+      "conflict": {
+        "ดีมาก": [
+          "autospinn-sum"
+        ]
+      }
+    },
+    "41": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "42": {
+      "meaning": "ดวงอุปถัมภ์ มีผู้ใหญ่ค้ำจุน (tabiendee)",
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "43": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "44": {
+      "grade": "ดี",
+      "sources": [
+        "sanook"
+      ],
+      "conflict": {
+        "ดีมาก": [
+          "autospinn-sum"
+        ]
+      }
+    },
+    "45": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "46": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "48": {
+      "grade": "ไม่ดีนัก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "50": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "51": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "54": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook",
+        "autospinn-sum"
+      ]
+    },
+    "55": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "56": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "59": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "63": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "64": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "65": {
+      "grade": "ดีมาก",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "69": {
+      "grade": "ดี",
+      "sources": [
+        "sanook"
+      ]
+    },
+    "79": {
+      "grade": "ดี",
+      "sources": [
+        "sanook"
+      ]
+    }
+  },
+  "_sumGrades": "grade = เกรดที่แหล่งเห็นตรงกันมากสุด · sources = แหล่งที่ให้เกรดนั้น · conflict = แหล่งที่ให้ต่างออกไป · sanook ใส่ 20 ทั้งดีและไม่ดี จึงถือเป็นขัดกัน",
+  "groups": [
+    {
+      "emoji": "🛡️",
+      "name": "แคล้วคลาดปลอดภัย",
+      "pairSources": {
+        "15": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "35": [
+          "tqm"
+        ],
+        "49": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "51": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "53": [
+          "tqm"
+        ],
+        "55": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "59": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "94": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "95": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "99": [
+          "autospinn-pair",
+          "tqm"
+        ]
+      },
+      "pairs": [
+        "15",
+        "35",
+        "49",
+        "51",
+        "53",
+        "55",
+        "59",
+        "94",
+        "95",
+        "99"
+      ]
+    },
+    {
+      "emoji": "💗",
+      "name": "เมตตามหานิยม เสน่ห์ ค้าขายดี",
+      "pairSources": {
+        "22": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "23": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "24": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "26": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "29": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "32": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "36": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "42": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "62": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "63": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "92": [
+          "autospinn-pair",
+          "tqm"
+        ]
+      },
+      "pairs": [
+        "22",
+        "23",
+        "24",
+        "26",
+        "29",
+        "32",
+        "36",
+        "42",
+        "62",
+        "63",
+        "92"
+      ]
+    },
+    {
+      "emoji": "👑",
+      "name": "อำนาจบารมี ผู้ใหญ่อุปถัมภ์ ก้าวหน้า",
+      "pairSources": {
+        "15": [
+          "tqm",
+          "berded"
+        ],
+        "19": [
+          "berded"
+        ],
+        "35": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "45": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "51": [
+          "tqm",
+          "berded"
+        ],
+        "53": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "54": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "89": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "91": [
+          "berded"
+        ],
+        "98": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "99": [
+          "tqm"
+        ]
+      },
+      "pairs": [
+        "15",
+        "19",
+        "35",
+        "45",
+        "51",
+        "53",
+        "54",
+        "89",
+        "91",
+        "98",
+        "99"
+      ]
+    },
+    {
+      "emoji": "💰",
+      "name": "โชคลาภ การเงิน วาจาเรียกทรัพย์",
+      "pairSources": {
+        "14": [
+          "berded"
+        ],
+        "24": [
+          "tqm"
+        ],
+        "28": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "36": [
+          "tqm"
+        ],
+        "41": [
+          "berded"
+        ],
+        "42": [
+          "tqm"
+        ],
+        "46": [
+          "berded"
+        ],
+        "55": [
+          "berded"
+        ],
+        "56": [
+          "berded"
+        ],
+        "59": [
+          "berded"
+        ],
+        "63": [
+          "tqm"
+        ],
+        "64": [
+          "berded"
+        ],
+        "65": [
+          "berded"
+        ],
+        "66": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "69": [
+          "berded"
+        ],
+        "78": [
+          "berded"
+        ],
+        "82": [
+          "autospinn-pair",
+          "tqm",
+          "berded"
+        ],
+        "87": [
+          "berded"
+        ],
+        "95": [
+          "berded"
+        ],
+        "96": [
+          "berded"
+        ],
+        "99": [
+          "berded"
+        ]
+      },
+      "pairs": [
+        "14",
+        "24",
+        "28",
+        "36",
+        "41",
+        "42",
+        "46",
+        "55",
+        "56",
+        "59",
+        "63",
+        "64",
+        "65",
+        "66",
+        "69",
+        "78",
+        "82",
+        "87",
+        "95",
+        "96",
+        "99"
+      ]
+    },
+    {
+      "emoji": "⚠️",
+      "name": "ตำราบอกว่าควรเลี่ยง",
+      "kind": "avoid",
+      "pairSources": {
+        "01": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "02": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "03": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "06": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "07": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "10": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "11": [
+          "autospinn-pair"
+        ],
+        "12": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "13": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "17": [
+          "autospinn-pair"
+        ],
+        "19": [
+          "autospinn-pair"
+        ],
+        "20": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "21": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "30": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "31": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "33": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "37": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "38": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "39": [
+          "autospinn-pair"
+        ],
+        "60": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "67": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "70": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "71": [
+          "autospinn-pair"
+        ],
+        "73": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "76": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "77": [
+          "autospinn-pair"
+        ],
+        "83": [
+          "autospinn-pair",
+          "tqm"
+        ],
+        "91": [
+          "autospinn-pair"
+        ],
+        "93": [
+          "autospinn-pair"
+        ]
+      },
+      "pairs": [
+        "01",
+        "02",
+        "03",
+        "06",
+        "07",
+        "10",
+        "11",
+        "12",
+        "13",
+        "17",
+        "19",
+        "20",
+        "21",
+        "30",
+        "31",
+        "33",
+        "37",
+        "38",
+        "39",
+        "60",
+        "67",
+        "70",
+        "71",
+        "73",
+        "76",
+        "77",
+        "83",
+        "91",
+        "93"
+      ]
+    }
+  ],
+  "_groups": "pairs = คู่เลขทั้งหมดของกลุ่ม · pairSources = คู่เลขไหนมาจากแหล่งไหน (ยิ่งหลายแหล่งยิ่งเห็นตรงกัน) · กลุ่ม kind=avoid คือคู่เลขที่ตำราบอกว่าควรเลี่ยง — bot จะเตือน ไม่ตัดออก"
 }

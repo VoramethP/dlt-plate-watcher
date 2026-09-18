@@ -6,7 +6,7 @@ import { VEHICLE_LABEL } from '../schedule/types.js';
 import { daysBetween, formatThaiDate, formatThaiDateShort } from '../thai-date.js';
 import { matchSchedule } from '../match.js';
 import type { Config } from '../config.js';
-import { EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
+import { bestSumNumbers, EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
 
 export interface Embed {
   title: string;
@@ -75,15 +75,18 @@ export function matchEmbed(m: Match, numerology: Numerology = EMPTY_NUMEROLOGY):
   const e = m.entry;
   const groups = groupByReason(m);
   // 🔮 ความหมายตามตารางของผู้ใช้ — จัดกลุ่มตามสาย เลขหนึ่งอาจอยู่หลายสาย · ไม่มีตาราง/ไม่เข้าสาย = ไม่แสดง
-  const meanings = groupNumbersByMeaning(e.prefix, m.numbers, numerology)
-    .map((g) => `${g.group.emoji} **${g.group.name}**\n${numberLines(e.prefix, g.numbers, 300)}`);
+  const best = bestSumNumbers(e.prefix, m.numbers, numerology);
+  const meanings = [
+    ...(best.length ? [`⭐ **ผลรวมทั้งป้ายระดับดีมาก** (นับหมวด ${e.prefix} ด้วย)\n${best.map(({ n, sum }) => `\`${n}\`=${sum}`).join(' · ')}`] : []),
+    ...groupNumbersByMeaning(e.prefix, m.numbers, numerology).map((g) => `${g.group.emoji} **${g.group.name}**\n${numberLines(e.prefix, g.numbers, 300)}`),
+  ];
   return {
     title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${formatThaiDate(e.openDate)}`,
     description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
     color: COLOR.match,
     fields: [
       ...groups.map((g) => ({ name: `${g.reason} (${g.numbers.length})`, value: numberLines(e.prefix, g.numbers) })),
-      ...(meanings.length ? [{ name: '🔮 ความหมาย (ตาม numerology.json)', value: meanings.join('\n').slice(0, 1024) }] : []),
+      ...(meanings.length ? [{ name: `🔮 เลขศาสตร์ (รวบรวมจาก ${numerology.sources.length || 'หลาย'} แหล่ง · ดู numerology.json)`, value: meanings.join('\n').slice(0, 1024) }] : []),
       { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true },
       { name: 'ต้องจดทะเบียนภายใน', value: formatThaiDate(e.registerBy, false), inline: true },
       ...(e.note ? [{ name: 'หมายเหตุจากขนส่ง', value: e.note }] : []),
