@@ -119,3 +119,16 @@ export async function runOpeningPing(config: Config, env: Env) {
   if (sent.length) await saveState(env.statePath, { ...state, notified: [...state.notified, ...sent.map((p) => p.key)] });
   return { sent };
 }
+
+/** ส่ง match embed ของรอบนี้ทั้งหมดทันที ไม่อ่าน/ไม่เขียน state — เอาไว้ดูหน้าตาข้อความหลังแก้ดีไซน์ */
+export async function runPreview(config: Config, env: Env) {
+  const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
+  const embeds = matchSchedule(schedule.entries, config).map(matchEmbed);
+  if (!embeds.length) return { sent: 0 };
+  if (!env.webhookUrl) {
+    (env.log ?? console.log)(JSON.stringify(embeds, null, 2));
+    return { sent: 0 };
+  }
+  for (let i = 0; i < embeds.length; i += 10) await sendDiscord(env.webhookUrl, { embeds: embeds.slice(i, i + 10) }, env.fetcher ?? fetch);
+  return { sent: embeds.length };
+}

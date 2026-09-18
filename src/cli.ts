@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { loadConfig } from './config.js';
-import { loadSchedule, runCheck, runOpeningPing } from './core.js';
+import { loadSchedule, runCheck, runOpeningPing, runPreview } from './core.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
 import { VEHICLE_LABEL } from './schedule/types.js';
@@ -13,6 +13,7 @@ const HELP = `dlt-plate-watcher — เฝ้าตารางเปิดจ�
   schedule            พิมพ์ตารางเปิดจองรอบปัจจุบัน
   match               พิมพ์เลขใน wishlist ที่จะเปิดจองรอบนี้ (ไม่ส่ง Discord)
   check               ดึงตาราง + ส่งแจ้งเตือนรายการใหม่เข้า Discord (ใช้กับ cron)
+  preview             ส่ง match ของรอบนี้เข้า Discord ทันทีโดยไม่สน state (ไว้ดูหน้าตาข้อความ)
   watch               รันค้างไว้: check ทุกวัน 08:00 และปิงก่อนเปิดจอง 09:50 (เวลาไทย)
 
 ตัวเลือก:
@@ -79,6 +80,11 @@ async function main() {
         console.log(`\n${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}`);
         for (const n of m.numbers) console.log(`  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`);
       }
+      return;
+    }
+    case 'preview': {
+      const r = await runPreview(await getConfig(), env);
+      console.log(`ส่ง preview ${r.sent} embed`);
       return;
     }
     case 'check': {

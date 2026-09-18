@@ -30,17 +30,40 @@ function rangeLine(e: ScheduleEntry): string {
   return `**${e.prefix}** ${e.from} – ${e.to}`;
 }
 
+/** จัดกลุ่มเลขตามเหตุผล → 1 field ต่อเหตุผล (ผู้ใช้ไม่ต้องอ่าน regex) */
+export function groupByReason(m: Match): Array<{ reason: string; numbers: number[] }> {
+  const groups = new Map<string, number[]>();
+  for (const n of m.numbers) for (const r of m.reasons.get(n)!) groups.set(r, [...(groups.get(r) ?? []), n]);
+  const order = new Map(m.reasonOrder.map((r, i) => [r, i]));
+  return [...groups.entries()]
+    .sort((a, b) => (order.get(a[0]) ?? 99) - (order.get(b[0]) ?? 99))
+    .map(([reason, numbers]) => ({ reason, numbers }));
+}
+
+/** เรียงเลขเป็นแถว ๆ ให้พอดีลิมิต 1024 ตัวอักษรของ Discord field */
+function numberLines(prefix: string, numbers: number[], maxChars = 1000): string {
+  const perRow = 5;
+  const rows: string[] = [];
+  let shown = 0;
+  for (let i = 0; i < numbers.length; i += perRow) {
+    const row = numbers.slice(i, i + perRow).map((n) => `\`${prefix} ${n}\``).join('  ');
+    if (rows.join('\n').length + row.length + 40 > maxChars) break;
+    rows.push(row);
+    shown = i + perRow;
+  }
+  if (shown < numbers.length) rows.push(`…และอีก ${numbers.length - shown} เลข`);
+  return rows.join('\n');
+}
+
 export function matchEmbed(m: Match): Embed {
   const e = m.entry;
-  const shown = m.numbers.slice(0, 25); // Discord field มีลิมิต 1024 ตัวอักษร
-  const list = shown.map((n) => `\`${e.prefix} ${n}\` · ${m.reasons.get(n)!.join(', ')}`).join('\n');
-  const more = m.numbers.length > shown.length ? `\n…และอีก ${m.numbers.length - shown.length} เลข` : '';
+  const groups = groupByReason(m);
   return {
     title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${formatThaiDate(e.openDate)}`,
-    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)}`,
+    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข`,
     color: COLOR.match,
     fields: [
-      { name: `เลขที่ตรงเงื่อนไข (${m.numbers.length})`, value: list + more },
+      ...groups.map((g) => ({ name: `${g.reason} (${g.numbers.length})`, value: numberLines(e.prefix, g.numbers) })),
       { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true },
       { name: 'ต้องจดทะเบียนภายใน', value: formatThaiDate(e.registerBy, false), inline: true },
       ...(e.note ? [{ name: 'หมายเหตุจากขนส่ง', value: e.note }] : []),

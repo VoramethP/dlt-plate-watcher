@@ -8,11 +8,12 @@ describe('matchEntry', () => {
   it('เลขตรง wishlist', () => {
     const m = matchEntry(entry, { numbers: [8888, 1234], patterns: [], digitSums: [] });
     expect(m?.numbers).toEqual([8888]);
-    expect(m?.reasons.get(8888)).toEqual(['ตรง wishlist']);
+    expect(m?.reasons.get(8888)).toEqual(['เลขที่ระบุไว้']);
   });
   it('เลขตอง 4 ตัวจาก pattern', () => {
-    const m = matchEntry(entry, { numbers: [], patterns: ['^(\\d)\\1{3}$'], digitSums: [] });
+    const m = matchEntry(entry, { numbers: [], patterns: [{ name: 'เลขตอง', regex: '^(\\d)\\1{3}$' }], digitSums: [] });
     expect(m?.numbers).toEqual([8888, 9999]);
+    expect(m?.reasons.get(8888)).toEqual(['เลขตอง']);
   });
   it('ผลรวมเลข', () => {
     expect(digitSum(8001)).toBe(9);
@@ -20,7 +21,7 @@ describe('matchEntry', () => {
     expect(m?.numbers).toEqual([8001, 8010]);
   });
   it('รวมเหตุผลเมื่อเลขเดียวตรงหลายข้อ', () => {
-    const m = matchEntry(entry, { numbers: [9999], patterns: ['^(\\d)\\1{3}$'], digitSums: [36] });
+    const m = matchEntry(entry, { numbers: [9999], patterns: [{ name: 'เลขตอง', regex: '^(\\d)\\1{3}$' }], digitSums: [36] });
     expect(m?.reasons.get(9999)).toHaveLength(3);
   });
   it('null เมื่อไม่มีอะไรตรง', () => {
