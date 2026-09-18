@@ -77,7 +77,7 @@ async function connectNotifier(): Promise<Notifier | undefined> {
   const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channelId, DISCORD_WEBHOOK_URL: webhook } = process.env;
   if (token && channelId) {
     return createBotNotifier({
-      token, channelId, configPath: values.config, statePath: env.statePath,
+      token, channelId, configPath: values.config, statePath: env.statePath, stickyPanel: cmd === 'watch',
       myEntries: async () => { const c = await getConfig(); return (await loadSchedule(c.scheduleFileId)).entries.filter((e) => e.vehicleType === c.vehicleType); },
       wishlist: async (owners) => {
         const c = await getConfig();

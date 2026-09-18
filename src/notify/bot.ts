@@ -20,6 +20,8 @@ export interface BotOptions {
   commands?: Partial<Record<CommandId, () => Promise<string | { embeds: Embed[] }>>>;
   /** สร้าง embed ของแผงควบคุม (bot เรียกเองตอนต้องโพสต์ใหม่ เช่น หลังแจ้งเตือน หรือ /panel) */
   panel?: () => Promise<Embed>;
+  /** true เฉพาะ process `watch` — ให้แผงตามมาอยู่ล่างสุดหลังส่ง · คำสั่งครั้งเดียว (check/preview) ไม่ควรโพสต์แผงซ้อนของ watch */
+  stickyPanel?: boolean;
   /** embed 📋 เลขที่เฝ้าอยู่ (รับ owners จาก state) */
   wishlist?: (owners: Record<string, string>) => Promise<Embed>;
   /** แถวตารางของรถประเภทผู้ใช้ — ไว้บอกว่าเลขที่กรอกจะเปิดวันไหน · ไม่มีก็ข้าม */
@@ -75,7 +77,7 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
     client,
     async send(embeds: Embed[]) {
       await target.send({ embeds, components: buttonRows() });
-      await sendPanel(); // แผงอยู่ล่างสุดเสมอ จะได้กดถึงโดยไม่ต้องเลื่อนหา
+      if (opts.stickyPanel) await sendPanel(); // แผงอยู่ล่างสุดเสมอ จะได้กดถึงโดยไม่ต้องเลื่อนหา
     },
     sendPanel,
     async close() {
