@@ -17,6 +17,7 @@
 | ประวัติว่าทำอะไรไปบ้าง ทำไมถึงตัดสินใจแบบนั้น | [`docs/WORKLOG.md`](docs/WORKLOG.md) |
 | เหตุผลเบื้องหลังการตัดสินใจเชิงสถาปัตยกรรม | [`docs/adr/`](docs/adr/) |
 | วิธีใช้งานสำหรับคนทั่วไป | [`README.md`](README.md) |
+| ปุ่มใน Discord แต่ละปุ่มทำอะไร (ต้องตรงกับ `guideEmbeds()`) | [`docs/UI-GUIDE.md`](docs/UI-GUIDE.md) |
 | แผนภาพ flow ทั้งระบบ แยกหน้า (01 ภาพรวม … 07 roadmap) | [`drawio/dlt-plate-watcher.drawio`](drawio/dlt-plate-watcher.drawio) · PNG ที่ `drawio/png/` |
 | **สิ่งที่ผู้ใช้วาด/ร่างไว้ให้ดู** | หน้า **"99 raw"** ในไฟล์ drawio เดียวกัน — export ด้วยคำสั่งใน `drawio/README.md` แล้วอ่าน PNG |
 

@@ -24,3 +24,17 @@ describe('matchEmbed จัดกลุ่มตามเหตุผล', () =>
     expect(JSON.stringify(matchEmbed(big))).toContain('และอีก');
   });
 });
+
+import { guideEmbeds, panelEmbed } from '../src/notify/discord.js';
+describe('คู่มือและแผงควบคุม', () => {
+  it('guideEmbeds อยู่ในลิมิต Discord และครอบคลุมทุกปุ่ม', () => {
+    const embeds = guideEmbeds();
+    const json = JSON.stringify(embeds);
+    for (const e of embeds) for (const f of e.fields ?? []) expect(f.value.length).toBeLessThanOrEqual(1024);
+    expect(json.length).toBeLessThanOrEqual(6000);
+    for (const label of ['กรอกเลขที่อยากจอง', 'ดูประวัติแชต', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์', 'ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'คู่มือ']) expect(json).toContain(label);
+  });
+  it('panelEmbed มีช่องคู่มือ', () => {
+    expect(JSON.stringify(panelEmbed({ wishlistCount: 3, version: 'v' }))).toContain('คู่มือ');
+  });
+});

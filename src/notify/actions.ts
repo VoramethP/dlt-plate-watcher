@@ -13,7 +13,7 @@ export const BUTTON = {
 export const MODAL = { addNumber: 'add_number_modal', field: 'number' } as const;
 
 /** ปุ่มลัดของคำสั่ง CLI — อยู่บน "แผงควบคุม" ที่ bot โพสต์ตอนเริ่ม watch */
-export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status' } as const;
+export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
 export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];
 
 export function commandRow() {
@@ -24,6 +24,7 @@ export function commandRow() {
       { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
       { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
       { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
+      { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
     ],
   };
 }

@@ -5,8 +5,8 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { addNumberToConfig, BUTTON, buttonRow, clampReply, commandRow, formatHistory, MODAL, type CommandId } from './actions.js';
-import type { Embed, Notifier } from './discord.js';
+import { addNumberToConfig, BUTTON, buttonRow, clampReply, COMMAND, commandRow, formatHistory, MODAL, type CommandId } from './actions.js';
+import { guideEmbeds, type Embed, type Notifier } from './discord.js';
 
 export interface BotOptions {
   token: string;
@@ -91,6 +91,11 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     await i.deferReply(ephemeral);
     await sendPanel();
     await i.editReply('🛠️ ย้ายแผงควบคุมมาไว้ล่างสุดแล้ว');
+    return;
+  }
+
+  if (i.isButton() && i.customId === COMMAND.guide) {
+    await i.reply({ embeds: guideEmbeds(), ...ephemeral });
     return;
   }
 

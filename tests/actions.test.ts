@@ -17,7 +17,8 @@ describe('buttonRow', () => {
 describe('commandRow', () => {
   it('ปุ่มลัด 4 คำสั่ง custom_id ขึ้นต้น cmd_ ทั้งหมด', () => {
     const row = commandRow();
-    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot']);
+    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot', 'คู่มือ']);
+    expect(row.components.length).toBeLessThanOrEqual(5); // ลิมิตต่อแถวของ Discord
     expect(row.components.every((c) => 'custom_id' in c && c.custom_id.startsWith('cmd_'))).toBe(true);
   });
   it('clampReply ตัดให้ไม่เกินลิมิต Discord', () => {

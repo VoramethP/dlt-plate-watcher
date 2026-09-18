@@ -260,7 +260,7 @@ function buildEmbed() {
     description: 'กดปุ่มด้านล่างแทนการพิมพ์คำสั่งในเทอร์มินัล · คำตอบเห็นเฉพาะคุณ',
     fields: [
       { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule`', inline: true }, { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match`', inline: true }, { name: '🔄 เช็คตอนนี้', value: '= `npm run check`', inline: true },
-      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true }, { name: 'ตอนนี้', value: `wishlist ${[...sample().numbers].length ? $('wanted').value.split(',').length : 0} เลข · ตารางเวอร์ชัน 14 ก.ย. 08:58`, inline: true },
+      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true }, { name: '❓ คู่มือ', value: 'ทุกปุ่มทำอะไร ขยายความจากการ์ด', inline: true }, { name: 'ตอนนี้', value: `wishlist ${[...sample().numbers].length ? $('wanted').value.split(',').length : 0} เลข · ตารางเวอร์ชัน 14 ก.ย. 08:58`, inline: true },
     ], footer };
   return { title: '🗓️ ตารางที่ตั้งไว้หมดอายุแล้ว', color: 0x6b7280,
     description: `ตารางล่าสุดจบไปตั้งแต่ ${fmt('2026-09-18')} แต่ไฟล์บน Drive ยังไม่เปลี่ยน\nถ้าขนส่งย้ายไปใช้ไฟล์ใหม่ ให้เปิดหน้าตาราง คัดลอกลิงก์ iframe มาใส่ \`scheduleFileId\``, footer };
@@ -306,12 +306,14 @@ const CMDS = [
   { cls: 's', act: 'cmd_match', label: '🎯 เลขในฝันรอบนี้', json: { type: 2, style: 2, custom_id: 'cmd_match', label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } } },
   { cls: 'p', act: 'cmd_check', label: '🔄 เช็คตอนนี้', json: { type: 2, style: 1, custom_id: 'cmd_check', label: 'เช็คตอนนี้', emoji: { name: '🔄' } } },
   { cls: 's', act: 'cmd_status', label: '🧭 สถานะ bot', json: { type: 2, style: 2, custom_id: 'cmd_status', label: 'สถานะ bot', emoji: { name: '🧭' } } },
+  { cls: 's', act: 'cmd_guide', label: '❓ คู่มือ', json: { type: 2, style: 2, custom_id: 'cmd_guide', label: 'คู่มือ', emoji: { name: '❓' } } },
 ];
-function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; return $('btnLayout').value === '2x2' ? [set.slice(0, 2), set.slice(2)] : [set]; }
+function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; return $('btnLayout').value === '2x2' ? [set.slice(0, 2), set.slice(2, 4), ...(set.length > 4 ? [set.slice(4)] : [])] : [set]; }
 const CMD_OUT = {
   cmd_schedule: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),
   cmd_match: () => { const s = sample(); return code(`${fmt(s.entry.openDate)} · ${s.entry.prefix} ${s.entry.from}–${s.entry.to}\n` + s.numbers.slice(0, 8).map((n) => `  ${s.entry.prefix} ${n}\t${s.reasons.get(n).join(', ')}`).join('\n') + (s.numbers.length > 8 ? `\n  …อีก ${s.numbers.length - 8} เลข` : '')); },
   cmd_check: () => '🔄 เช็คแล้ว · ควรแจ้ง 1 · ส่งใหม่ 0 รายการ (ไม่มีอะไรใหม่ตั้งแต่ 08:00)',
+  cmd_guide: () => `<b>❓ คู่มือปุ่ม — ข้อความแจ้งเตือน</b><br>🔢 <b>กรอกเลขที่อยากจอง</b> · เพิ่มเลขลง wishlist ให้เฝ้า (หลายเลขได้) bot บอกว่าเปิดวันไหน ซ้ำไหม ผ่านไปแล้วไหม · ไม่ได้จองแทน<br>📜 <b>ดูประวัติแชต</b> · รายการที่เคยแจ้ง เห็นเฉพาะคุณ<br>🧹 <b>ลบประวัติแชตเก่า</b> · ลบข้อความเก่าของ bot ในช่องนี้ ไม่แตะของคนอื่น<br>🌐 <b>เข้าสู่เว็บไซต์</b> · ไปหน้าจองของขนส่ง เปิด 10:00–16:00 ต้องยืนยัน ThaID<br><br><b>🛠️ คู่มือปุ่ม — แผงควบคุม</b> (อยู่ล่างสุดเสมอ · หาไม่เจอพิมพ์ /panel)<br>📅 <b>ตารางสัปดาห์นี้</b> = npm run schedule<br>🎯 <b>เลขในฝันรอบนี้</b> = npm run match<br>🔄 <b>เช็คตอนนี้</b> = npm run check<br>🧭 <b>สถานะ bot</b> · uptime · wishlist · รอบถัดไป<br>❓ <b>คู่มือ</b> · ข้อความนี้<br><br><b>สิ่งที่ bot จะไม่ทำ</b> ไม่ล็อกอิน ThaID · ไม่กรอกเลขบัตร · ไม่กดจองแทน · ไม่เช็คกับระบบขนส่งว่าเลขถูกจองแล้วหรือยัง`,
   cmd_status: () => `🧭 bot ออนไลน์มา 137 นาที (เริ่ม 18/9/2569 08:00)\nwishlist ${$('wanted').value.split(',').filter(Boolean).length} เลข · pattern 2 แบบ · รถ car\nรอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)`,
 };
 const code = (t) => `<pre style="margin:6px 0 0;white-space:pre-wrap">${esc(t)}</pre>`;
