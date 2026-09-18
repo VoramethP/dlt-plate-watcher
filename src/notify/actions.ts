@@ -12,6 +12,27 @@ export const BUTTON = {
 } as const;
 export const MODAL = { addNumber: 'add_number_modal', field: 'number' } as const;
 
+/** ปุ่มลัดของคำสั่ง CLI — อยู่บน "แผงควบคุม" ที่ bot โพสต์ตอนเริ่ม watch */
+export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status' } as const;
+export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];
+
+export function commandRow() {
+  return {
+    type: 1,
+    components: [
+      { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } },
+      { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
+      { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
+      { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
+    ],
+  };
+}
+
+/** Discord ตอบ interaction ได้ไม่เกิน 2000 ตัวอักษร */
+export function clampReply(text: string, max = 1900): string {
+  return text.length <= max ? text : text.slice(0, max) + '\n…(ตัดให้พอดีลิมิต)';
+}
+
 /** action row แบบ JSON ดิบ (discord.js รับได้ตรง ๆ) · style 1=primary 2=secondary 4=danger 5=link */
 export function buttonRow() {
   return {

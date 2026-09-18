@@ -113,6 +113,22 @@ export function reminderEmbed(kind: 'open' | 'deadline', e: ScheduleEntry, daysL
       };
 }
 
+export function panelEmbed(info: { wishlistCount: number; version: string }): Embed {
+  return {
+    title: '🛠️ แผงควบคุม dlt-plate-watcher',
+    description: 'กดปุ่มด้านล่างแทนการพิมพ์คำสั่งในเทอร์มินัล · คำตอบเห็นเฉพาะคุณ',
+    color: COLOR.info,
+    fields: [
+      { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule`', inline: true },
+      { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match`', inline: true },
+      { name: '🔄 เช็คตอนนี้', value: '= `npm run check`', inline: true },
+      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true },
+      { name: 'ตอนนี้', value: `wishlist ${info.wishlistCount} เลข · ตารางเวอร์ชัน ${info.version}`, inline: true },
+    ],
+    footer: { text: FOOTER },
+  };
+}
+
 export function staleEmbed(schedule: Schedule): Embed {
   const last = schedule.entries.map((e) => e.openDate).sort().at(-1)!;
   return {

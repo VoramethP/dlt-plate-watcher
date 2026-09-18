@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { addNumberToConfig, BUTTON, buttonRow, formatHistory, MODAL } from './actions.js';
+import { addNumberToConfig, BUTTON, buttonRow, clampReply, commandRow, formatHistory, MODAL, type CommandId } from './actions.js';
 import type { Embed, Notifier } from './discord.js';
 
 export interface BotOptions {
@@ -14,10 +14,14 @@ export interface BotOptions {
   configPath: string;
   statePath: string;
   log?: (msg: string) => void;
+  /** ปุ่มลัดคำสั่ง — cli.ts ใส่ให้ เพราะต้องใช้ config/schedule ที่ bot ไม่รู้จัก · คืนข้อความตอบ (ephemeral) */
+  commands?: Partial<Record<CommandId, () => Promise<string>>>;
 }
 
 export interface BotNotifier extends Notifier {
   client: Client;
+  /** โพสต์แผงควบคุมพร้อมปุ่มลัดคำสั่ง */
+  sendPanel(embed: Embed): Promise<void>;
 }
 
 export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> {
@@ -40,6 +44,9 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
     async send(embeds: Embed[]) {
       await target.send({ embeds, components: [buttonRow()] });
     },
+    async sendPanel(embed: Embed) {
+      await target.send({ embeds: [embed], components: [commandRow()] });
+    },
     async close() {
       await client.destroy();
     },
@@ -48,6 +55,18 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
 
 async function handleInteraction(i: Interaction, opts: BotOptions, client: Client) {
   const ephemeral = { flags: MessageFlags.Ephemeral } as const;
+
+  if (i.isButton() && i.customId.startsWith('cmd_')) {
+    const run = opts.commands?.[i.customId as CommandId];
+    if (!run) { await i.reply({ content: 'ปุ่มนี้ยังไม่ได้ต่อคำสั่ง', ...ephemeral }); return; }
+    await i.deferReply(ephemeral); // คำสั่งต้องโหลด PDF อาจเกิน 3 วินาที
+    try {
+      await i.editReply(clampReply(await run()));
+    } catch (err) {
+      await i.editReply(`❌ ${err instanceof Error ? err.message : err}`);
+    }
+    return;
+  }
 
   if (i.isButton()) {
     switch (i.customId) {

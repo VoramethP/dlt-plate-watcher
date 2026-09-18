@@ -2,7 +2,9 @@
 import { parseArgs } from 'node:util';
 import { loadConfig } from './config.js';
 import { loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
-import { createBotNotifier } from './notify/bot.js';
+import { createBotNotifier, type BotNotifier } from './notify/bot.js';
+import { COMMAND } from './notify/actions.js';
+import { panelEmbed } from './notify/discord.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
@@ -47,11 +49,49 @@ const env: Env = {
   statePath: values['dry-run'] ? `/tmp/dlt-plate-watcher-dry-${process.pid}.json` : values.state,
 };
 
+const startedAt = new Date();
+
+/** ข้อความของคำสั่งแต่ละตัว (ใช้ทั้งใน CLI และปุ่มลัดบน Discord) */
+function scheduleText(s: Awaited<ReturnType<typeof loadSchedule>>): string {
+  const lines = [`ตารางเวอร์ชัน ${s.version} (Drive ${s.sourceFileId})`, ''];
+  for (const type of ['car', 'van', 'pickup'] as const) {
+    lines.push(`■ ${VEHICLE_LABEL[type]}`);
+    for (const e of s.entries.filter((e) => e.vehicleType === type)) {
+      lines.push(`  ${formatThaiDate(e.openDate).padEnd(28)} ${e.prefix}  ${String(e.from).padStart(4)} – ${String(e.to).padEnd(4)}  จดภายใน ${formatThaiDate(e.registerBy, false)}${e.note ? `  (${e.note})` : ''}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<ReturnType<typeof loadConfig>>): string {
+  const matches = matchSchedule(s.entries, config);
+  if (!matches.length) return 'รอบนี้ไม่มีเลขใน wishlist เปิดจอง';
+  return matches.map((m) => `${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}\n` +
+    m.numbers.map((n) => `  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`).join('\n')).join('\n\n');
+}
+const code = (t: string) => '```\n' + t + '\n```';
+
 /** เลือกปลายทาง: dry-run → ไม่ส่ง · มี bot token → bot (มีปุ่ม) · ไม่งั้น webhook */
 async function connectNotifier(): Promise<Notifier | undefined> {
   if (values['dry-run']) return undefined;
   const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channelId, DISCORD_WEBHOOK_URL: webhook } = process.env;
-  if (token && channelId) return createBotNotifier({ token, channelId, configPath: values.config, statePath: env.statePath });
+  if (token && channelId) {
+    return createBotNotifier({
+      token, channelId, configPath: values.config, statePath: env.statePath,
+      commands: {
+        [COMMAND.schedule]: async () => code(scheduleText(await loadSchedule((await getConfig()).scheduleFileId))),
+        [COMMAND.match]: async () => { const c = await getConfig(); return code(matchText(await loadSchedule(c.scheduleFileId), c)); },
+        [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
+        [COMMAND.status]: async () => {
+          const c = await getConfig();
+          const up = Math.round((Date.now() - startedAt.getTime()) / 60000);
+          return [`🧭 bot ออนไลน์มา ${up} นาที (เริ่ม ${startedAt.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })})`,
+            `wishlist ${c.wishlist.numbers.length} เลข · pattern ${c.wishlist.patterns.length} แบบ · รถ ${c.vehicleType}`,
+            'รอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)'].join('\n');
+        },
+      },
+    });
+  }
   if (webhook) return webhookNotifier(webhook);
   return undefined;
 }
@@ -72,26 +112,12 @@ async function main() {
   switch (cmd) {
     case 'schedule': {
       const config = await getConfig();
-      const s = await loadSchedule(config.scheduleFileId);
-      console.log(`ตารางเวอร์ชัน ${s.version} (Drive ${s.sourceFileId})\n`);
-      for (const type of ['car', 'van', 'pickup'] as const) {
-        console.log(`■ ${VEHICLE_LABEL[type]}`);
-        for (const e of s.entries.filter((e) => e.vehicleType === type)) {
-          console.log(`  ${formatThaiDate(e.openDate).padEnd(28)} ${e.prefix}  ${String(e.from).padStart(4)} – ${String(e.to).padEnd(4)}  จดภายใน ${formatThaiDate(e.registerBy, false)}${e.note ? `  (${e.note})` : ''}`);
-        }
-        console.log();
-      }
+      console.log(scheduleText(await loadSchedule(config.scheduleFileId)));
       return;
     }
     case 'match': {
       const config = await getConfig();
-      const s = await loadSchedule(config.scheduleFileId);
-      const matches = matchSchedule(s.entries, config);
-      if (!matches.length) { console.log('รอบนี้ไม่มีเลขใน wishlist เปิดจอง'); return; }
-      for (const m of matches) {
-        console.log(`\n${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}`);
-        for (const n of m.numbers) console.log(`  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`);
-      }
+      console.log(matchText(await loadSchedule(config.scheduleFileId), config));
       return;
     }
     case 'preview': {
@@ -109,8 +135,13 @@ async function main() {
       return;
     }
     case 'watch': {
-      await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
+      const startConfig = await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
       env.notifier = await connectNotifier();
+      // โหมด bot: โพสต์แผงควบคุมพร้อมปุ่มลัดคำสั่งตอนเริ่ม (ใช้ปุ่ม 🧹 ลบของเก่าได้)
+      if (env.notifier && 'sendPanel' in env.notifier) {
+        const s = await loadSchedule(startConfig.scheduleFileId).catch(() => null);
+        await (env.notifier as BotNotifier).sendPanel(panelEmbed({ wishlistCount: startConfig.wishlist.numbers.length, version: s?.version ?? 'โหลดไม่ได้' }));
+      }
       let checkedDay = '';
       let pingedDay = '';
       console.log('เริ่มเฝ้า · check ทุกวัน 08:00 · ปิง 09:50 เฉพาะวันที่มีเลขใน wishlist เปิด (เวลาไทย) · Ctrl+C เพื่อหยุด');

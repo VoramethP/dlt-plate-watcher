@@ -84,6 +84,7 @@
         <option value="deadline">⚠️ เตือนหมดเขตจดทะเบียน</option>
         <option value="schedule">📅 ตารางรอบใหม่</option>
         <option value="stale">🗓️ ตารางหมดอายุ</option>
+        <option value="panel">🛠️ แผงควบคุม (ปุ่มลัดคำสั่ง)</option>
       </select>
     </fieldset>
 
@@ -102,7 +103,7 @@
       <label class="opt"><input type="checkbox" id="optCount" checked> แสดงจำนวนเลขต่อกลุ่ม</label>
       <label class="opt"><input type="checkbox" id="optNote" checked> แสดงหมายเหตุจากขนส่ง</label>
       <label class="opt"><input type="checkbox" id="optFooter" checked> แสดง footer</label>
-      <label class="opt"><input type="checkbox" id="optButtons" checked> แสดงปุ่ม 4 ปุ่ม</label>
+      <label class="opt"><input type="checkbox" id="optButtons" checked> แสดงปุ่ม (4 ปุ่มบนแจ้งเตือน / ปุ่มลัดคำสั่งบนแผงควบคุม)</label>
       <label class="opt"><input type="checkbox" id="optUrgency" checked> สีแถบซ้ายตามความเร่งด่วน (เขียว → เหลือง → แดง)</label>
       <div class="hint">Discord ให้แถบซ้ายเป็นสีเดียว ทำ gradient ไม่ได้ · แต่เปลี่ยนสีตามวันที่เหลือได้</div>
       <div style="margin-top:8px"><div class="hint">การจัดปุ่ม (Discord กำหนดความกว้างปุ่มเองตามข้อความ)</div>
@@ -255,6 +256,12 @@ function buildEmbed() {
       { name: 'รถเก๋ง / กระบะ 4 ประตู', value: 'จ. 14 → **8ขจ** 8001–9999\nอ. 15 → **8ขฉ** 1–2000\nพ. 16 → **8ขฉ** 2001–3500\nพฤ. 17 → **8ขฉ** 3501–5000\nศ. 18 → **8ขฉ** 5001–6500' + (v === 'v1' ? '' : '  ← มีเลขที่เล็งไว้ 🎯') },
       { name: 'รถตู้', value: 'จ.–ศ. → **1นฎ** 2801–3300', inline: true }, { name: 'กระบะบรรทุก', value: 'จ.–ศ. → **4ฒฐ** 6601–7600', inline: true },
     ], footer };
+  if (kind === 'panel') return { title: '🛠️ แผงควบคุม dlt-plate-watcher', color: 0x3b82f6,
+    description: 'กดปุ่มด้านล่างแทนการพิมพ์คำสั่งในเทอร์มินัล · คำตอบเห็นเฉพาะคุณ',
+    fields: [
+      { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule`', inline: true }, { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match`', inline: true }, { name: '🔄 เช็คตอนนี้', value: '= `npm run check`', inline: true },
+      { name: '🧭 สถานะ bot', value: 'uptime · รอบ check/ปิงถัดไป · wishlist', inline: true }, { name: 'ตอนนี้', value: `wishlist ${[...sample().numbers].length ? $('wanted').value.split(',').length : 0} เลข · ตารางเวอร์ชัน 14 ก.ย. 08:58`, inline: true },
+    ], footer };
   return { title: '🗓️ ตารางที่ตั้งไว้หมดอายุแล้ว', color: 0x6b7280,
     description: `ตารางล่าสุดจบไปตั้งแต่ ${fmt('2026-09-18')} แต่ไฟล์บน Drive ยังไม่เปลี่ยน\nถ้าขนส่งย้ายไปใช้ไฟล์ใหม่ ให้เปิดหน้าตาราง คัดลอกลิงก์ iframe มาใส่ \`scheduleFileId\``, footer };
 }
@@ -294,7 +301,20 @@ const BTNS = [
   { cls: 'd', act: 'clear', label: '🧹 ลบประวัติแชตเก่า', json: { type: 2, style: 4, custom_id: 'clear_history', label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } } },
   { cls: 'l', href: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: '🌐 เข้าสู่เว็บไซต์ ↗', json: { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } },
 ];
-function buttonRows() { return $('btnLayout').value === '2x2' ? [BTNS.slice(0, 2), BTNS.slice(2)] : [BTNS]; }
+const CMDS = [
+  { cls: 's', act: 'cmd_schedule', label: '📅 ตารางสัปดาห์นี้', json: { type: 2, style: 2, custom_id: 'cmd_schedule', label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } } },
+  { cls: 's', act: 'cmd_match', label: '🎯 เลขในฝันรอบนี้', json: { type: 2, style: 2, custom_id: 'cmd_match', label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } } },
+  { cls: 'p', act: 'cmd_check', label: '🔄 เช็คตอนนี้', json: { type: 2, style: 1, custom_id: 'cmd_check', label: 'เช็คตอนนี้', emoji: { name: '🔄' } } },
+  { cls: 's', act: 'cmd_status', label: '🧭 สถานะ bot', json: { type: 2, style: 2, custom_id: 'cmd_status', label: 'สถานะ bot', emoji: { name: '🧭' } } },
+];
+function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; return $('btnLayout').value === '2x2' ? [set.slice(0, 2), set.slice(2)] : [set]; }
+const CMD_OUT = {
+  cmd_schedule: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),
+  cmd_match: () => { const s = sample(); return code(`${fmt(s.entry.openDate)} · ${s.entry.prefix} ${s.entry.from}–${s.entry.to}\n` + s.numbers.slice(0, 8).map((n) => `  ${s.entry.prefix} ${n}\t${s.reasons.get(n).join(', ')}`).join('\n') + (s.numbers.length > 8 ? `\n  …อีก ${s.numbers.length - 8} เลข` : '')); },
+  cmd_check: () => '🔄 เช็คแล้ว · ควรแจ้ง 1 · ส่งใหม่ 0 รายการ (ไม่มีอะไรใหม่ตั้งแต่ 08:00)',
+  cmd_status: () => `🧭 bot ออนไลน์มา 137 นาที (เริ่ม 18/9/2569 08:00)\nwishlist ${$('wanted').value.split(',').filter(Boolean).length} เลข · pattern 2 แบบ · รถ car\nรอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)`,
+};
+const code = (t) => `<pre style="margin:6px 0 0;white-space:pre-wrap">${esc(t)}</pre>`;
 function renderButtons() {
   $('buttons').innerHTML = buttonRows().map((row) => `<div class="btnrow${$('btnLayout').value === '2x2' ? ' grid2' : ''}">` + row.map((b) => b.href
     ? `<a class="btn ${b.cls}" href="${b.href}" target="_blank" rel="noopener">${b.label}</a>`
@@ -306,6 +326,7 @@ const describe = (k) => { const [kind, ...r] = k.split(':'); return { match: `�
 document.addEventListener('click', (ev) => {
   const chip = ev.target.closest('.chip'); if (chip) { navigator.clipboard?.writeText(chip.dataset.num); toast(`คัดลอก ${chip.dataset.num} แล้ว`); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act.startsWith('cmd_')) return ephemeral(CMD_OUT[b.dataset.act]().replace(/\n/g, '<br>'));
   if (b.dataset.act === 'add') { $('modalBg').style.display = 'grid'; $('modalNum').value = ''; $('modalNum').focus(); }
   if (b.dataset.act === 'history') ephemeral(`<b>แจ้งไปแล้ว ${state.notified.length} รายการ (ล่าสุดก่อน)</b><br>${[...state.notified].reverse().map(describe).join('<br>')}`);
   if (b.dataset.act === 'clear') ephemeral('ลบข้อความเก่าของ bot ไป 3 ข้อความ (เก็บข้อความนี้ไว้)');

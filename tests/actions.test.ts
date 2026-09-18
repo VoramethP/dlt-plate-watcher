@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addNumberToConfig, buttonRow, describeKey, formatHistory } from '../src/notify/actions.js';
+import { addNumberToConfig, buttonRow, clampReply, commandRow, describeKey, formatHistory } from '../src/notify/actions.js';
 
 describe('buttonRow', () => {
   it('มี 4 ปุ่มตามที่ร่างไว้ และปุ่มสุดท้ายเป็นลิงก์ไปหน้าจองของขนส่ง', () => {
@@ -11,6 +11,18 @@ describe('buttonRow', () => {
     const link = row.components[3] as { style: number; url?: string };
     expect(link.style).toBe(5);
     expect(link.url).toContain('reserve.dlt.go.th');
+  });
+});
+
+describe('commandRow', () => {
+  it('ปุ่มลัด 4 คำสั่ง custom_id ขึ้นต้น cmd_ ทั้งหมด', () => {
+    const row = commandRow();
+    expect(row.components.map((c) => c.label)).toEqual(['ตารางสัปดาห์นี้', 'เลขในฝันรอบนี้', 'เช็คตอนนี้', 'สถานะ bot']);
+    expect(row.components.every((c) => 'custom_id' in c && c.custom_id.startsWith('cmd_'))).toBe(true);
+  });
+  it('clampReply ตัดให้ไม่เกินลิมิต Discord', () => {
+    expect(clampReply('x'.repeat(3000)).length).toBeLessThanOrEqual(2000);
+    expect(clampReply('สั้น')).toBe('สั้น');
   });
 });
 
