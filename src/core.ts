@@ -7,6 +7,7 @@ import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
 import { loadState, saveState, type State } from './state.js';
 import { daysBetween, todayBangkok } from './thai-date.js';
+import { createHash } from 'node:crypto';
 
 export interface Env {
   webhookUrl?: string;
@@ -24,7 +25,11 @@ export async function loadSchedule(fileId: string, fetcher: Fetcher = fetch): Pr
   return { sourceFileId: fileId, version, fetchedAt: new Date().toISOString(), entries };
 }
 
-export const matchKey = (m: Match) => `match:${m.entry.openDate}:${m.entry.prefix}:${m.entry.from}-${m.entry.to}`;
+/** wishlist เปลี่ยน = ต้องแจ้งช่วงเดิมใหม่ จึงผูก key กับ hash ของ wishlist ด้วย */
+export const wishlistHash = (w: Config['wishlist']) =>
+  createHash('sha1').update(JSON.stringify([w.numbers, w.patterns, w.digitSums])).digest('hex').slice(0, 8);
+export const matchKey = (m: Match, w: Config['wishlist']) =>
+  `match:${m.entry.openDate}:${m.entry.prefix}:${m.entry.from}-${m.entry.to}:${wishlistHash(w)}`;
 export const reminderKey = (kind: string, e: ScheduleEntry, d: number) => `${kind}:${e.openDate}:${e.prefix}:${e.from}:${d}`;
 
 /** ตารางหมดอายุ = ทุกวันเปิดจองผ่านไปแล้ว → ต้องไปเอา file id ใหม่จากหน้าขนส่ง */
@@ -47,7 +52,7 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
     }
     for (const m of matchSchedule(schedule.entries, config)) {
       if (daysBetween(today, m.entry.openDate) < 0) continue; // ผ่านไปแล้ว ไม่ต้องแจ้ง
-      out.push({ key: matchKey(m), embed: matchEmbed(m) });
+      out.push({ key: matchKey(m, config.wishlist), embed: matchEmbed(m) });
     }
     for (const e of mine) {
       const untilOpen = daysBetween(today, e.openDate);

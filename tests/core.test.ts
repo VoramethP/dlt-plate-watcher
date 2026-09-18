@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isStale, planNotifications } from '../src/core.js';
+import { isStale, planNotifications, wishlistHash } from '../src/core.js';
 import type { Schedule } from '../src/schedule/types.js';
 
 const schedule: Schedule = {
@@ -15,19 +15,30 @@ describe('planNotifications', () => {
     const plan = planNotifications(schedule, config, { notified: [], lastScheduleVersion: 'old' }, '2026-09-14');
     const keys = plan.map((p) => p.key);
     expect(keys).toContain(`schedule:${schedule.version}`);
-    expect(keys).toContain('match:2026-09-14:8ขจ:8001-9999');
-    expect(keys).toContain('match:2026-09-15:8ขฉ:1-2000');
+    const h = wishlistHash(config.wishlist);
+    expect(keys).toContain(`match:2026-09-14:8ขจ:8001-9999:${h}`);
+    expect(keys).toContain(`match:2026-09-15:8ขฉ:1-2000:${h}`);
     expect(keys).toContain('open:2026-09-15:8ขฉ:1:1');
   });
   it('ไม่แจ้ง match ของวันที่ผ่านไปแล้ว และไม่แจ้งตารางใหม่ในรอบแรกสุด', () => {
     const plan = planNotifications(schedule, config, { notified: [] }, '2026-09-15');
     const keys = plan.map((p) => p.key);
-    expect(keys).not.toContain('match:2026-09-14:8ขจ:8001-9999');
+    expect(keys.some((k) => k.startsWith('match:2026-09-14'))).toBe(false);
     expect(keys.some((k) => k.startsWith('schedule:'))).toBe(false);
   });
   it('เตือนหมดเขตจดทะเบียน 7 วันก่อน', () => {
     const plan = planNotifications(schedule, config, { notified: [] }, '2026-10-07');
     expect(plan.map((p) => p.key)).toContain('deadline:2026-09-14:8ขจ:8001:7');
+  });
+});
+
+describe('เปลี่ยน wishlist', () => {
+  it('ช่วงเดิมได้ key ใหม่ จึงถูกแจ้งอีกครั้ง', () => {
+    const before = planNotifications(schedule, config, { notified: [] }, '2026-09-14').map((p) => p.key);
+    const changed = { ...config, wishlist: { ...config.wishlist, numbers: [8888] } };
+    const after = planNotifications(schedule, changed, { notified: before }, '2026-09-14')
+      .filter((p) => !before.includes(p.key)).map((p) => p.key);
+    expect(after.some((k) => k.startsWith('match:2026-09-14:8ขจ'))).toBe(true);
   });
 });
 
