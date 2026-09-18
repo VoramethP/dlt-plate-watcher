@@ -8,6 +8,9 @@ export const THAI_MONTHS = [
 
 export const THAI_DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'] as const;
 
+export const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'] as const;
+export const THAI_DAYS_SHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'] as const;
+
 export const BANGKOK_TZ = 'Asia/Bangkok';
 
 /** "14 กันยายน 2569" → "2026-09-14" · คืน null ถ้าอ่านไม่ออก */
@@ -32,6 +35,13 @@ export function formatThaiDate(iso: string, withDayName = true): string {
   const dayName = THAI_DAYS[date.getUTCDay()];
   const text = `${d} ${THAI_MONTHS[m - 1]} ${y + 543}`;
   return withDayName ? `${dayName} ${text}` : text;
+}
+
+/** "2026-09-14" → "จ. 14 ก.ย." (ไว้ใส่ในบรรทัดสั้น ๆ ของ embed) */
+export function formatThaiDateShort(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return `${THAI_DAYS_SHORT[date.getUTCDay()]} ${d} ${THAI_MONTHS_SHORT[m - 1]}`;
 }
 
 /** วันนี้ตามเวลาไทย เป็น ISO date */

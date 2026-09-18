@@ -38,3 +38,33 @@ describe('คู่มือและแผงควบคุม', () => {
     expect(JSON.stringify(panelEmbed({ wishlistCount: 3, version: 'v' }))).toContain('คู่มือ');
   });
 });
+
+import { scheduleEmbed, statusEmbed } from '../src/notify/discord.js';
+import type { Schedule } from '../src/schedule/types.js';
+describe('scheduleEmbed แบบมี config/today', () => {
+  const schedule: Schedule = { sourceFileId: 'F', version: 'v1', fetchedAt: '', entries: [
+    { vehicleType: 'car', openDate: '2026-09-14', prefix: '8ขจ', from: 8001, to: 9999, registerBy: '2026-10-14' },
+    { vehicleType: 'car', openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' },
+    { vehicleType: 'van', openDate: '2026-09-14', prefix: '1นฎ', from: 2801, to: 2900, registerBy: '2026-10-14' },
+  ] };
+  const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+  it('ทำเครื่องหมายผ่านแล้ว/วันนี้/กำลังมา และ 🎯 วันที่มีเลขในฝัน + รถของคุณ', () => {
+    const e = scheduleEmbed(schedule, { config, today: '2026-09-14', title: 'T' });
+    const car = e.fields!.find((f) => f.name.includes('← รถของคุณ'))!;
+    expect(car.value).toContain('🔥 **จ. 14 ก.ย.**');
+    expect(car.value).toContain('⏳ **ศ. 18 ก.ย.** · **8ขฉ** 5001 – 6500 🎯 1 เลข');
+    expect(e.fields!.find((f) => f.name.includes('รถตู้'))!.name).not.toContain('รถของคุณ');
+    expect(e.title).toBe('T');
+    expect(e.description).toContain('30 วันหลังวันเปิด');
+  });
+  it('ไม่มี today → ไม่มีไอคอนสถานะ (ใช้ตอนตารางรอบใหม่)', () => {
+    const e = scheduleEmbed(schedule);
+    expect(e.fields![0].value).toContain('▫️');
+    expect(e.description).not.toContain('ผ่านไปแล้ว');
+  });
+  it('statusEmbed บอกเลขในฝันเปิดครั้งถัดไป', () => {
+    const e = statusEmbed({ startedAt: new Date(Date.now() - 90 * 60000), wishlistCount: 3, patternCount: 2, vehicleType: 'car', today: '2026-09-15', nextMatchDate: '2026-09-18' });
+    expect(JSON.stringify(e)).toContain('1 ชม. 30 นาที');
+    expect(JSON.stringify(e)).toContain('อีก 3 วัน');
+  });
+});

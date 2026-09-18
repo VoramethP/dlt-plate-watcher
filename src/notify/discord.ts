@@ -3,7 +3,9 @@ import type { Match } from '../match.js';
 import { DLT_RESERVE_PAGE, DLT_SCHEDULE_PAGE, type Fetcher } from '../schedule/fetch.js';
 import type { Schedule, ScheduleEntry } from '../schedule/types.js';
 import { VEHICLE_LABEL } from '../schedule/types.js';
-import { formatThaiDate } from '../thai-date.js';
+import { daysBetween, formatThaiDate, formatThaiDateShort } from '../thai-date.js';
+import { matchSchedule } from '../match.js';
+import type { Config } from '../config.js';
 
 export interface Embed {
   title: string;
@@ -82,17 +84,53 @@ export function matchEmbed(m: Match): Embed {
   };
 }
 
-export function scheduleEmbed(schedule: Schedule): Embed {
+/**
+ * ตารางทั้งสัปดาห์เป็น embed — ใช้ทั้งตอน "ตารางรอบใหม่" และปุ่ม 📅 บนแผง
+ * มี config → ทำเครื่องหมาย 🎯 วันที่มีเลขในฝัน และ "← รถของคุณ" · มี today → ไอคอนผ่านแล้ว/วันนี้/กำลังมา
+ */
+export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config?: Config; today?: string } = {}): Embed {
   const byType = new Map<string, ScheduleEntry[]>();
   for (const e of schedule.entries) byType.set(e.vehicleType, [...(byType.get(e.vehicleType) ?? []), e]);
+  const matchDays = new Map<string, number>();
+  if (opts.config) for (const m of matchSchedule(schedule.entries, opts.config)) matchDays.set(`${m.entry.vehicleType}:${m.entry.openDate}`, m.numbers.length);
+  const dates = schedule.entries.map((e) => e.openDate).sort();
+  const first = dates[0]; const last = dates.at(-1)!;
+  const status = (e: ScheduleEntry) => {
+    if (!opts.today) return '▫️';
+    const d = daysBetween(opts.today, e.openDate);
+    return d < 0 ? '✅' : d === 0 ? '🔥' : '⏳';
+  };
+  const row = (e: ScheduleEntry) => {
+    const hit = matchDays.get(`${e.vehicleType}:${e.openDate}`);
+    return `${status(e)} **${formatThaiDateShort(e.openDate)}** · ${rangeLine(e)}${hit ? ` 🎯 ${hit} เลข` : ''}`;
+  };
+  const registerDays = daysBetween(schedule.entries[0].openDate, schedule.entries[0].registerBy);
   return {
-    title: '📅 ขนส่งออกตารางเปิดจองรอบใหม่',
-    description: `อัปเดตเมื่อ ${schedule.version}`,
+    title: opts.title ?? '📅 ขนส่งออกตารางเปิดจองรอบใหม่',
+    description: `สัปดาห์ **${formatThaiDate(first, false)} – ${formatThaiDate(last, false)}** · เปิดจอง 10:00–16:00 น. · จดทะเบียนภายใน ${registerDays} วันหลังวันเปิด` +
+      (opts.today ? '\n✅ ผ่านไปแล้ว · 🔥 วันนี้ · ⏳ กำลังมา' : ''),
     color: COLOR.info,
     fields: [...byType.entries()].map(([type, list]) => ({
-      name: VEHICLE_LABEL[type as keyof typeof VEHICLE_LABEL],
-      value: list.map((e) => `${formatThaiDate(e.openDate)} → ${rangeLine(e)}`).join('\n'),
+      name: `${VEHICLE_LABEL[type as keyof typeof VEHICLE_LABEL]}${opts.config?.vehicleType === type ? '  ← รถของคุณ' : ''}`,
+      value: list.map(row).join('\n'),
     })),
+    footer: { text: `${FOOTER} · อัปเดต ${schedule.version}` },
+  };
+}
+
+export function statusEmbed(info: { startedAt: Date; wishlistCount: number; patternCount: number; vehicleType: string; today: string; nextMatchDate?: string }): Embed {
+  const up = Math.round((Date.now() - info.startedAt.getTime()) / 60000);
+  const upText = up < 60 ? `${up} นาที` : `${Math.floor(up / 60)} ชม. ${up % 60} นาที`;
+  return {
+    title: '🧭 สถานะ bot',
+    color: COLOR.match,
+    fields: [
+      { name: 'ออนไลน์มา', value: upText, inline: true },
+      { name: 'wishlist', value: `${info.wishlistCount} เลข · ${info.patternCount} pattern`, inline: true },
+      { name: 'ประเภทรถ', value: VEHICLE_LABEL[info.vehicleType as keyof typeof VEHICLE_LABEL] ?? info.vehicleType, inline: true },
+      { name: 'รอบถัดไป', value: 'check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)' },
+      { name: 'เลขในฝันเปิดครั้งถัดไป', value: info.nextMatchDate ? `${formatThaiDate(info.nextMatchDate)} (อีก ${daysBetween(info.today, info.nextMatchDate)} วัน)` : 'ไม่มีในตารางสัปดาห์นี้' },
+    ],
     footer: { text: FOOTER },
   };
 }

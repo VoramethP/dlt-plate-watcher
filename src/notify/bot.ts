@@ -15,7 +15,7 @@ export interface BotOptions {
   statePath: string;
   log?: (msg: string) => void;
   /** ปุ่มลัดคำสั่ง — cli.ts ใส่ให้ เพราะต้องใช้ config/schedule ที่ bot ไม่รู้จัก · คืนข้อความตอบ (ephemeral) */
-  commands?: Partial<Record<CommandId, () => Promise<string>>>;
+  commands?: Partial<Record<CommandId, () => Promise<string | { embeds: Embed[] }>>>;
   /** สร้าง embed ของแผงควบคุม (bot เรียกเองตอนต้องโพสต์ใหม่ เช่น หลังแจ้งเตือน หรือ /panel) */
   panel?: () => Promise<Embed>;
 }
@@ -104,7 +104,8 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     if (!run) { await i.reply({ content: 'ปุ่มนี้ยังไม่ได้ต่อคำสั่ง', ...ephemeral }); return; }
     await i.deferReply(ephemeral); // คำสั่งต้องโหลด PDF อาจเกิน 3 วินาที
     try {
-      await i.editReply(clampReply(await run()));
+      const out = await run();
+      await i.editReply(typeof out === 'string' ? clampReply(out) : { embeds: out.embeds.slice(0, 10) });
     } catch (err) {
       await i.editReply(`❌ ${err instanceof Error ? err.message : err}`);
     }

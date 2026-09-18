@@ -250,7 +250,8 @@ function buildEmbed() {
   if (kind === 'deadline') return { title: `⚠️ อีก 7 วัน หมดเขตจดทะเบียนเลขหมวด ${e.prefix}`, color: 0xf59e0b,
     description: `ต้องจดทะเบียนภายใน ${fmt(e.registerBy)} ไม่งั้นเลขที่จองได้จะหลุด`,
     fields: v === 'v1' ? [] : [{ name: '📍 ไปที่', value: 'สำนักงานขนส่งที่จอง', inline: true }, { name: '📎 เอกสาร', value: 'หลักฐานการจอง · ทะเบียนรถ · บัตรประชาชน', inline: true }], footer };
-  if (kind === 'schedule') return { title: '📅 ขนส่งออกตารางเปิดจองรอบใหม่', color: 0x3b82f6,
+  if (kind === 'schedule') return weekEmbed({ title: '📅 ขนส่งออกตารางเปิดจองรอบใหม่', today: v === 'v1' ? null : s.today, mark: v !== 'v1' });
+  if (kind === 'schedule_legacy') return { title: '📅 ขนส่งออกตารางเปิดจองรอบใหม่', color: 0x3b82f6,
     description: v === 'v1' ? 'อัปเดตเมื่อ Mon, 14 Sep 2026 01:58:13 GMT' : `สัปดาห์ **14 – 18 กันยายน 2569** · อัปเดต จ. 14 ก.ย. 08:58 น.`,
     fields: [
       { name: 'รถเก๋ง / กระบะ 4 ประตู', value: 'จ. 14 → **8ขจ** 8001–9999\nอ. 15 → **8ขฉ** 1–2000\nพ. 16 → **8ขฉ** 2001–3500\nพฤ. 17 → **8ขฉ** 3501–5000\nศ. 18 → **8ขฉ** 5001–6500' + (v === 'v1' ? '' : '  ← มีเลขที่เล็งไว้ 🎯') },
@@ -266,6 +267,29 @@ function buildEmbed() {
     description: `ตารางล่าสุดจบไปตั้งแต่ ${fmt('2026-09-18')} แต่ไฟล์บน Drive ยังไม่เปลี่ยน\nถ้าขนส่งย้ายไปใช้ไฟล์ใหม่ ให้เปิดหน้าตาราง คัดลอกลิงก์ iframe มาใส่ \`scheduleFileId\``, footer };
 }
 
+// ---- ตารางทั้งสัปดาห์เป็น embed (ใช้ทั้ง "ตารางรอบใหม่" และปุ่ม 📅) ----
+const WEEK_ALL = {
+  car: [['2026-09-14', '8ขจ', 8001, 9999], ['2026-09-15', '8ขฉ', 1, 2000], ['2026-09-16', '8ขฉ', 2001, 3500], ['2026-09-17', '8ขฉ', 3501, 5000], ['2026-09-18', '8ขฉ', 5001, 6500]],
+  van: [['2026-09-14', '1นฎ', 2801, 2900], ['2026-09-15', '1นฎ', 2901, 3000], ['2026-09-16', '1นฎ', 3001, 3100], ['2026-09-17', '1นฎ', 3101, 3200], ['2026-09-18', '1นฎ', 3201, 3300]],
+  pickup: [['2026-09-14', '4ฒฐ', 6601, 6800], ['2026-09-15', '4ฒฐ', 6801, 7000], ['2026-09-16', '4ฒฐ', 7001, 7200], ['2026-09-17', '4ฒฐ', 7201, 7400], ['2026-09-18', '4ฒฐ', 7401, 7600]],
+};
+const LABEL = { car: 'รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)', van: 'รถยนต์นั่งส่วนบุคคลเกิน 7 คน (รถตู้)', pickup: 'รถยนต์บรรทุกส่วนบุคคล (กระบะบรรทุก / กระบะ 2 ประตู)' };
+const DSHORT = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']; const MSHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const fmtShort = (iso) => { const d = new Date(iso + 'T00:00:00'); return `${DSHORT[d.getDay()]} ${d.getDate()} ${MSHORT[d.getMonth()]}`; };
+function weekEmbed({ title, today, mark }) {
+  const s = sample();
+  const hits = {};
+  if (mark) for (const [iso, prefix, from, to] of WEEK_ALL.car) { let n = 0; for (let x = from; x <= to; x++) if (s.reasons.has(x) || /^(\d)\1{2,3}$/.test(String(x)) || /^(\d)(\d)\1\2$/.test(String(x))) n++; if (n) hits[iso] = n; }
+  const status = (iso) => !today ? '▫️' : daysBetween(today, iso) < 0 ? '✅' : daysBetween(today, iso) === 0 ? '🔥' : '⏳';
+  return { title, color: 0x3b82f6,
+    description: `สัปดาห์ **14 กันยายน 2569 – 18 กันยายน 2569** · เปิดจอง 10:00–16:00 น. · จดทะเบียนภายใน 30 วันหลังวันเปิด${today ? '\n✅ ผ่านไปแล้ว · 🔥 วันนี้ · ⏳ กำลังมา' : ''}`,
+    fields: Object.entries(WEEK_ALL).map(([type, rows]) => ({
+      name: `${LABEL[type]}${mark && type === 'car' ? '  ← รถของคุณ' : ''}`,
+      value: rows.map(([iso, prefix, from, to]) => `${status(iso)} **${fmtShort(iso)}** · **${prefix}** ${from} – ${to}${type === 'car' && hits[iso] ? ` 🎯 ${hits[iso]} เลข` : ''}`).join('\n'),
+    })),
+    footer: { text: 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID · อัปเดต Mon, 14 Sep 2026 01:58:13 GMT' } };
+}
+
 // ---- render embed JSON → DOM (markdown ย่อย: **bold**, `code`, ลิงก์) ----
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function md(s) {
@@ -275,10 +299,7 @@ function md(s) {
     .replace(/(https?:\/\/\S+)/g, '<a href="$1" style="color:var(--link)" target="_blank" rel="noopener">$1</a>')
     .replace(/\n/g, '<br>');
 }
-function render() {
-  const embed = buildEmbed();
-  document.documentElement.style.setProperty('--accent', '#' + embed.color.toString(16).padStart(6, '0'));
-  $('botNameOut').textContent = $('botName').value || 'DLT Plate Watcher';
+function embedHtml(embed) {
   let html = `<div class="title">${esc(embed.title)}</div>`;
   if (embed.description) html += `<div class="desc">${md(embed.description)}</div>`;
   if (embed.fields?.length) {
@@ -286,7 +307,14 @@ function render() {
     html += '<div class="fields cols">' + embed.fields.map((f) => `<div class="field${f.inline ? '' : ' full'}"><div class="name">${esc(f.name)}</div><div class="val">${md(f.value)}</div></div>`).join('') + '</div>';
   }
   if (embed.footer) html += `<div class="footer">${esc(embed.footer.text)}</div>`;
-  $('embed').innerHTML = html;
+  return html;
+}
+const embedBox = (embed) => `<div class="embed" style="border-left-color:#${(embed.color ?? 0x3b82f6).toString(16).padStart(6, '0')};margin-top:6px">${embedHtml(embed)}</div>`;
+function render() {
+  const embed = buildEmbed();
+  document.documentElement.style.setProperty('--accent', '#' + embed.color.toString(16).padStart(6, '0'));
+  $('botNameOut').textContent = $('botName').value || 'DLT Plate Watcher';
+  $('embed').innerHTML = embedHtml(embed);
   $('buttons').style.display = $('optButtons').checked ? '' : 'none';
   renderButtons();
   $('json').textContent = JSON.stringify({ embeds: [embed], components: $('optButtons').checked ? buttonRows().map((row) => ({ type: 1, components: row.map((b) => b.json) })) : [] }, null, 2);
@@ -310,11 +338,17 @@ const CMDS = [
 ];
 function buttonRows() { const set = $('kind').value === 'panel' ? CMDS : BTNS; return $('btnLayout').value === '2x2' ? [set.slice(0, 2), set.slice(2, 4), ...(set.length > 4 ? [set.slice(4)] : [])] : [set]; }
 const CMD_OUT = {
-  cmd_schedule: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),
-  cmd_match: () => { const s = sample(); return code(`${fmt(s.entry.openDate)} · ${s.entry.prefix} ${s.entry.from}–${s.entry.to}\n` + s.numbers.slice(0, 8).map((n) => `  ${s.entry.prefix} ${n}\t${s.reasons.get(n).join(', ')}`).join('\n') + (s.numbers.length > 8 ? `\n  …อีก ${s.numbers.length - 8} เลข` : '')); },
+  cmd_schedule: () => embedBox(weekEmbed({ title: '📅 ตารางเปิดจองสัปดาห์นี้', today: $('today').value, mark: true })),
+  cmd_schedule_legacy: () => code(`ตารางเวอร์ชัน Mon, 14 Sep 2026 01:58:13 GMT\n\n■ รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)\n  จันทร์ 14 กันยายน 2569       8ขจ  8001 – 9999  จดภายใน 14 ตุลาคม 2569\n  อังคาร 15 กันยายน 2569       8ขฉ     1 – 2000  จดภายใน 15 ตุลาคม 2569\n  พุธ 16 กันยายน 2569          8ขฉ  2001 – 3500  จดภายใน 16 ตุลาคม 2569\n  พฤหัสบดี 17 กันยายน 2569     8ขฉ  3501 – 5000  จดภายใน 17 ตุลาคม 2569\n  ศุกร์ 18 กันยายน 2569        8ขฉ  5001 – 6500  จดภายใน 18 ตุลาคม 2569\n\n■ รถตู้ … ■ กระบะบรรทุก …`),
+  cmd_match: () => { const saved = $('kind').value; $('kind').value = 'match'; const e = buildEmbed(); $('kind').value = saved; return embedBox(e); },
+  cmd_match_legacy: () => { const s = sample(); return code(`${fmt(s.entry.openDate)} · ${s.entry.prefix} ${s.entry.from}–${s.entry.to}\n` + s.numbers.slice(0, 8).map((n) => `  ${s.entry.prefix} ${n}\t${s.reasons.get(n).join(', ')}`).join('\n') + (s.numbers.length > 8 ? `\n  …อีก ${s.numbers.length - 8} เลข` : '')); },
   cmd_check: () => '🔄 เช็คแล้ว · ควรแจ้ง 1 · ส่งใหม่ 0 รายการ (ไม่มีอะไรใหม่ตั้งแต่ 08:00)',
   cmd_guide: () => `<b>❓ คู่มือปุ่ม — ข้อความแจ้งเตือน</b><br>🔢 <b>กรอกเลขที่อยากจอง</b> · เพิ่มเลขลง wishlist ให้เฝ้า (หลายเลขได้) bot บอกว่าเปิดวันไหน ซ้ำไหม ผ่านไปแล้วไหม · ไม่ได้จองแทน<br>📜 <b>ดูประวัติแชต</b> · รายการที่เคยแจ้ง เห็นเฉพาะคุณ<br>🧹 <b>ลบประวัติแชตเก่า</b> · ลบข้อความเก่าของ bot ในช่องนี้ ไม่แตะของคนอื่น<br>🌐 <b>เข้าสู่เว็บไซต์</b> · ไปหน้าจองของขนส่ง เปิด 10:00–16:00 ต้องยืนยัน ThaID<br><br><b>🛠️ คู่มือปุ่ม — แผงควบคุม</b> (อยู่ล่างสุดเสมอ · หาไม่เจอพิมพ์ /panel)<br>📅 <b>ตารางสัปดาห์นี้</b> = npm run schedule<br>🎯 <b>เลขในฝันรอบนี้</b> = npm run match<br>🔄 <b>เช็คตอนนี้</b> = npm run check<br>🧭 <b>สถานะ bot</b> · uptime · wishlist · รอบถัดไป<br>❓ <b>คู่มือ</b> · ข้อความนี้<br><br><b>สิ่งที่ bot จะไม่ทำ</b> ไม่ล็อกอิน ThaID · ไม่กรอกเลขบัตร · ไม่กดจองแทน · ไม่เช็คกับระบบขนส่งว่าเลขถูกจองแล้วหรือยัง`,
-  cmd_status: () => `🧭 bot ออนไลน์มา 137 นาที (เริ่ม 18/9/2569 08:00)\nwishlist ${$('wanted').value.split(',').filter(Boolean).length} เลข · pattern 2 แบบ · รถ car\nรอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)`,
+  cmd_status: () => embedBox({ title: '🧭 สถานะ bot', color: 0x22c55e, fields: [
+    { name: 'ออนไลน์มา', value: '2 ชม. 17 นาที', inline: true }, { name: 'wishlist', value: `${$('wanted').value.split(',').filter(Boolean).length} เลข · 2 pattern`, inline: true }, { name: 'ประเภทรถ', value: LABEL.car, inline: true },
+    { name: 'รอบถัดไป', value: 'check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)' },
+    { name: 'เลขในฝันเปิดครั้งถัดไป', value: `ศุกร์ 18 กันยายน 2569 (อีก ${daysBetween($('today').value, '2026-09-18')} วัน)` } ], footer: { text: 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID' } }),
+  cmd_status_legacy: () => `🧭 bot ออนไลน์มา 137 นาที (เริ่ม 18/9/2569 08:00)\nwishlist ${$('wanted').value.split(',').filter(Boolean).length} เลข · pattern 2 แบบ · รถ car\nรอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)`,
 };
 const code = (t) => `<pre style="margin:6px 0 0;white-space:pre-wrap">${esc(t)}</pre>`;
 function renderButtons() {
@@ -328,7 +362,7 @@ const describe = (k) => { const [kind, ...r] = k.split(':'); return { match: `�
 document.addEventListener('click', (ev) => {
   const chip = ev.target.closest('.chip'); if (chip) { navigator.clipboard?.writeText(chip.dataset.num); toast(`คัดลอก ${chip.dataset.num} แล้ว`); return; }
   const b = ev.target.closest('[data-act]'); if (!b) return;
-  if (b.dataset.act.startsWith('cmd_')) return ephemeral(CMD_OUT[b.dataset.act]().replace(/\n/g, '<br>'));
+  if (b.dataset.act.startsWith('cmd_')) { const out = CMD_OUT[b.dataset.act](); return ephemeral(out.startsWith('<div') ? out : out.replace(/\n/g, '<br>')); }
   if (b.dataset.act === 'add') { $('modalBg').style.display = 'grid'; $('modalNum').value = ''; $('modalNum').focus(); }
   if (b.dataset.act === 'history') ephemeral(`<b>แจ้งไปแล้ว ${state.notified.length} รายการ (ล่าสุดก่อน)</b><br>${[...state.notified].reverse().map(describe).join('<br>')}`);
   if (b.dataset.act === 'clear') ephemeral('ลบข้อความเก่าของ bot ไป 3 ข้อความ (เก็บข้อความนี้ไว้)');

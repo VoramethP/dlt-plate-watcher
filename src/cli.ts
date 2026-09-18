@@ -4,7 +4,8 @@ import { loadConfig } from './config.js';
 import { loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
 import { createBotNotifier, type BotNotifier } from './notify/bot.js';
 import { COMMAND } from './notify/actions.js';
-import { panelEmbed } from './notify/discord.js';
+import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed } from './notify/discord.js';
+import { todayBangkok as todayTH } from './thai-date.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
@@ -69,7 +70,6 @@ function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<
   return matches.map((m) => `${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}\n` +
     m.numbers.map((n) => `  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`).join('\n')).join('\n\n');
 }
-const code = (t: string) => '```\n' + t + '\n```';
 
 /** เลือกปลายทาง: dry-run → ไม่ส่ง · มี bot token → bot (มีปุ่ม) · ไม่งั้น webhook */
 async function connectNotifier(): Promise<Notifier | undefined> {
@@ -84,15 +84,22 @@ async function connectNotifier(): Promise<Notifier | undefined> {
         return panelEmbed({ wishlistCount: c.wishlist.numbers.length, version: s?.version ?? 'โหลดไม่ได้' });
       },
       commands: {
-        [COMMAND.schedule]: async () => code(scheduleText(await loadSchedule((await getConfig()).scheduleFileId))),
-        [COMMAND.match]: async () => { const c = await getConfig(); return code(matchText(await loadSchedule(c.scheduleFileId), c)); },
+        [COMMAND.schedule]: async () => {
+          const c = await getConfig();
+          return { embeds: [scheduleEmbed(await loadSchedule(c.scheduleFileId), { title: '📅 ตารางเปิดจองสัปดาห์นี้', config: c, today: todayTH() })] };
+        },
+        [COMMAND.match]: async () => {
+          const c = await getConfig();
+          const matches = matchSchedule((await loadSchedule(c.scheduleFileId)).entries, c);
+          return matches.length ? { embeds: matches.map(matchEmbed) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 เพิ่มเลขได้จากข้อความแจ้งเตือน';
+        },
         [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
         [COMMAND.status]: async () => {
           const c = await getConfig();
-          const up = Math.round((Date.now() - startedAt.getTime()) / 60000);
-          return [`🧭 bot ออนไลน์มา ${up} นาที (เริ่ม ${startedAt.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })})`,
-            `wishlist ${c.wishlist.numbers.length} เลข · pattern ${c.wishlist.patterns.length} แบบ · รถ ${c.vehicleType}`,
-            'รอบถัดไป: check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)'].join('\n');
+          const today = todayTH();
+          const next = matchSchedule((await loadSchedule(c.scheduleFileId).catch(() => ({ entries: [] }))).entries, c)
+            .map((m) => m.entry.openDate).filter((d) => d >= today).sort()[0];
+          return { embeds: [statusEmbed({ startedAt, wishlistCount: c.wishlist.numbers.length, patternCount: c.wishlist.patterns.length, vehicleType: c.vehicleType, today, nextMatchDate: next })] };
         },
       },
     });
