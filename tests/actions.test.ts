@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { DISCORD_LIMITS, MODAL_TEXT, buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
 import { loadState } from '../src/state.js';
 
 describe('buttonRow', () => {
@@ -32,6 +32,17 @@ describe('การจัดแถวปุ่ม', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '9';
     expect(buttonRows()).toHaveLength(1);
     delete process.env.DISCORD_BUTTONS_PER_ROW;
+  });
+});
+
+describe('ข้อความใน modal อยู่ในลิมิต Discord', () => {
+  // เคยพัง 18 ก.ย.: label ยาวเกิน 45 → discord.js โยน "Invalid string length" → ผู้ใช้เห็น "ไม่ตอบสนองในเวลาที่กำหนด"
+  it('title/label ≤ 45 · placeholder ≤ 100', () => {
+    expect(MODAL_TEXT.title.length).toBeLessThanOrEqual(DISCORD_LIMITS.modalTitle);
+    expect(MODAL_TEXT.addLabel.length).toBeLessThanOrEqual(DISCORD_LIMITS.inputLabel);
+    expect(MODAL_TEXT.removeLabel.length).toBeLessThanOrEqual(DISCORD_LIMITS.inputLabel);
+    expect(MODAL_TEXT.addPlaceholder.length).toBeLessThanOrEqual(DISCORD_LIMITS.placeholder);
+    expect(MODAL_TEXT.removePlaceholder.length).toBeLessThanOrEqual(DISCORD_LIMITS.placeholder);
   });
 });
 

@@ -14,6 +14,16 @@ export const BUTTON = {
 } as const;
 export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove' } as const;
 
+/** ข้อความใน modal — Discord จำกัด title/label ≤ 45 ตัวอักษร · placeholder ≤ 100 (เกินแล้ว discord.js โยน "Invalid string length" ก่อนส่ง → ปุ่มขึ้น "ไม่ตอบสนอง") */
+export const MODAL_TEXT = {
+  title: 'เลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)',
+  addLabel: 'เพิ่มเลข 1–9999 (คั่นด้วย , หรือเว้นวรรค)',
+  addPlaceholder: 'เช่น 5555, 6000 6464',
+  removeLabel: 'ลบเลขที่กรอกผิด (ไม่ใส่ก็ได้)',
+  removePlaceholder: 'เช่น 15',
+} as const;
+export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100 } as const;
+
 /** ปุ่มลัดของคำสั่ง CLI — อยู่บน "แผงควบคุม" ที่ bot โพสต์ตอนเริ่ม watch */
 export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
 export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];

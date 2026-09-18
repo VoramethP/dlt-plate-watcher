@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, MODAL_TEXT, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -62,7 +62,12 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
       log(`ลงทะเบียน /panel ไม่ได้ (${err instanceof Error ? err.message : err}) — เชิญ bot ใหม่ด้วย scope bot + applications.commands ปุ่มยังใช้ได้ปกติ`));
   }
 
-  client.on(Events.InteractionCreate, (i) => handleInteraction(i, opts, client, sendPanel).catch((err) => log(`interaction พลาด: ${err instanceof Error ? err.message : err}`)));
+  client.on(Events.InteractionCreate, (i) => handleInteraction(i, opts, client, sendPanel).catch(async (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    log(`interaction พลาด: ${msg}`);
+    if (i.isRepliable() && !i.replied && !i.deferred) await i.reply({ content: `❌ bot พลาด: ${msg}`, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    else if (i.isRepliable() && i.deferred) await i.editReply(`❌ bot พลาด: ${msg}`).catch(() => undefined);
+  }));
 
   return {
     client,
@@ -119,13 +124,13 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
   if (i.isButton()) {
     switch (i.customId) {
       case BUTTON.addNumber: {
-        const modal = new ModalBuilder().setCustomId(MODAL.addNumber).setTitle('เลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)');
+        const modal = new ModalBuilder().setCustomId(MODAL.addNumber).setTitle(MODAL_TEXT.title);
         const add = new TextInputBuilder()
-          .setCustomId(MODAL.field).setLabel('เพิ่มเลข 1–9999 (หลายเลขคั่นด้วย , หรือเว้นวรรค)').setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder('เช่น 5555, 6000 6464').setMaxLength(300).setRequired(false);
+          .setCustomId(MODAL.field).setLabel(MODAL_TEXT.addLabel).setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder(MODAL_TEXT.addPlaceholder).setMaxLength(300).setRequired(false);
         const remove = new TextInputBuilder()
-          .setCustomId(MODAL.removeField).setLabel('ลบเลขที่กรอกผิด (ไม่ต้องใส่ก็ได้)').setStyle(TextInputStyle.Paragraph)
-          .setPlaceholder('เช่น 15').setMaxLength(300).setRequired(false);
+          .setCustomId(MODAL.removeField).setLabel(MODAL_TEXT.removeLabel).setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder(MODAL_TEXT.removePlaceholder).setMaxLength(300).setRequired(false);
         modal.addComponents(
           new ActionRowBuilder<TextInputBuilder>().addComponents(add),
           new ActionRowBuilder<TextInputBuilder>().addComponents(remove),
