@@ -7,6 +7,8 @@ export interface State {
   notified: string[];
   /** เวอร์ชันตารางล่าสุดที่เห็น (Last-Modified บน Drive) — เปลี่ยนแปลว่าขนส่งออกตารางใหม่ */
   lastScheduleVersion?: string;
+  /** ใครเพิ่มเลขไหนผ่านปุ่มใน Discord (เลข → ชื่อผู้ใช้) ไว้เตือนว่ามีคนในเซิร์ฟเวอร์เล็งไว้แล้ว */
+  owners?: Record<string, string>;
 }
 
 const EMPTY: State = { notified: [] };

@@ -2,7 +2,9 @@
 // ปุ่ม "กรอกเลขที่อยากจอง" แค่เพิ่มเลขลง wishlist ให้เฝ้า ไม่ได้จองแทน (ADR-0001)
 import { readFile, writeFile } from 'node:fs/promises';
 import { DLT_RESERVE_PAGE } from '../schedule/fetch.js';
-import type { State } from '../state.js';
+import { loadState, saveState, type State } from '../state.js';
+import type { ScheduleEntry } from '../schedule/types.js';
+import { daysBetween } from '../thai-date.js';
 import { formatThaiDate } from '../thai-date.js';
 
 export const BUTTON = {
@@ -10,7 +12,7 @@ export const BUTTON = {
   showHistory: 'show_history',
   clearHistory: 'clear_history',
 } as const;
-export const MODAL = { addNumber: 'add_number_modal', field: 'number' } as const;
+export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove' } as const;
 
 /** ปุ่มลัดของคำสั่ง CLI — อยู่บน "แผงควบคุม" ที่ bot โพสต์ตอนเริ่ม watch */
 export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
@@ -47,26 +49,77 @@ export function buttonRow() {
   };
 }
 
-export type AddNumberResult =
-  | { ok: true; number: number; already: boolean; total: number }
-  | { ok: false; error: string };
+/** "5555, 6000 6464\n12345 abc" → valid [5555, 6000, 6464] · invalid ["12345", "abc"] (ไม่ซ้ำ รักษาลำดับ) */
+export function parseNumbers(input: string): { valid: number[]; invalid: string[] } {
+  const valid: number[] = []; const invalid: string[] = [];
+  for (const tok of input.split(/[\s,;]+/).map((t) => t.trim()).filter(Boolean)) {
+    const n = /^\d{1,4}$/.test(tok) ? Number(tok) : NaN;
+    if (Number.isInteger(n) && n >= 1 && n <= 9999) { if (!valid.includes(n)) valid.push(n); }
+    else invalid.push(tok);
+  }
+  return { valid, invalid };
+}
 
-/** รับข้อความจาก modal → เพิ่มลง wishlist.numbers ใน watch.config.json (เขียนทับไฟล์แบบ 2-space) */
-export async function addNumberToConfig(configPath: string, input: string): Promise<AddNumberResult> {
-  const text = input.trim().replace(/[^\d]/g, '');
-  const number = Number(text);
-  if (!text || !Number.isInteger(number) || number < 1 || number > 9999) {
-    return { ok: false, error: `"${input.trim()}" ไม่ใช่เลขทะเบียน 1–9999` };
-  }
+async function readConfigRaw(configPath: string) {
   const raw = JSON.parse(await readFile(configPath, 'utf8'));
-  raw.wishlist ??= {};
-  raw.wishlist.numbers ??= [];
-  const already = raw.wishlist.numbers.includes(number);
-  if (!already) {
-    raw.wishlist.numbers = [...raw.wishlist.numbers, number].sort((a: number, b: number) => a - b);
-    await writeFile(configPath, JSON.stringify(raw, null, 2) + '\n');
+  raw.wishlist ??= {}; raw.wishlist.numbers ??= [];
+  return raw as { wishlist: { numbers: number[] } };
+}
+const writeConfigRaw = (configPath: string, raw: unknown) => writeFile(configPath, JSON.stringify(raw, null, 2) + '\n');
+
+export interface WishlistChange {
+  added: number[]; already: number[]; removed: number[]; notFound: number[]; total: number;
+}
+
+/** เพิ่ม/ลบหลายเลขใน watch.config.json ในครั้งเดียว · ลบก่อนเพิ่ม (พิมพ์เลขเดียวกันทั้งสองช่อง = เพิ่ม) */
+export async function updateWishlist(configPath: string, add: number[], remove: number[]): Promise<WishlistChange> {
+  const raw = await readConfigRaw(configPath);
+  let numbers = [...raw.wishlist.numbers];
+  const removed = remove.filter((n) => numbers.includes(n));
+  const notFound = remove.filter((n) => !numbers.includes(n));
+  numbers = numbers.filter((n) => !removed.includes(n));
+  const already = add.filter((n) => numbers.includes(n));
+  const added = add.filter((n) => !numbers.includes(n));
+  numbers = [...numbers, ...added].sort((a, b) => a - b);
+  if (added.length || removed.length) { raw.wishlist.numbers = numbers; await writeConfigRaw(configPath, raw); }
+  return { added, already, removed, notFound, total: numbers.length };
+}
+
+/** จำว่าใครเพิ่ม/ลบเลขไหน (ไว้บอกว่า "มี @คนนี้ เล็งไว้แล้ว") */
+export async function updateOwners(statePath: string, user: string, added: number[], removed: number[]): Promise<Record<string, string>> {
+  const state = await loadState(statePath);
+  const owners = { ...(state.owners ?? {}) };
+  const before = { ...owners };
+  for (const n of removed) delete owners[n];
+  for (const n of added) owners[n] ??= user;
+  await saveState(statePath, { ...state, owners });
+  return before;
+}
+
+/** เลขนี้เกี่ยวกับตารางสัปดาห์นี้ยังไง (สำหรับรถประเภทเดียวกับผู้ใช้) */
+export function describeNumber(n: number, entries: ScheduleEntry[], today: string): string {
+  const slot = entries.find((e) => n >= e.from && n <= e.to);
+  if (!slot) return 'ยังไม่อยู่ในตารางสัปดาห์นี้ · จะแจ้งเมื่อถึงคิว';
+  const d = daysBetween(today, slot.openDate);
+  const where = `${slot.prefix} ${slot.from}–${slot.to}`;
+  if (d < 0) return `⏪ ช่วง ${where} เปิดไปแล้วเมื่อ ${formatThaiDate(slot.openDate)} (น่าจะถูกจองแล้ว)`;
+  if (d === 0) return `🔥 เปิดจอง**วันนี้** ${where} 10:00–16:00 น. รีบเลย`;
+  return `⏳ จะเปิดจอง ${formatThaiDate(slot.openDate)} (${where}) อีก ${d} วัน`;
+}
+
+/** ข้อความสรุปผลของ modal — บรรทัดละเลข */
+export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string): string {
+  const lines: string[] = [];
+  for (const n of c.added) {
+    const other = owners[n] && owners[n] !== user ? ` · 👤 ${owners[n]} เล็งไว้ก่อนแล้ว` : '';
+    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}`);
   }
-  return { ok: true, number, already, total: raw.wishlist.numbers.length };
+  for (const n of c.already) lines.push(`ℹ️ **${n}** อยู่ใน wishlist อยู่แล้ว${owners[n] && owners[n] !== user ? ` (👤 ${owners[n]})` : ''}`);
+  for (const n of c.removed) lines.push(`🗑️ **${n}** ลบออกจาก wishlist แล้ว`);
+  for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีใน wishlist อยู่แล้ว`);
+  for (const t of invalid) lines.push(`❌ "${t}" ไม่ใช่เลขทะเบียน 1–9999`);
+  if (!lines.length) lines.push('ไม่มีอะไรเปลี่ยน');
+  return `**wishlist ตอนนี้ ${c.total} เลข**\n${lines.join('\n')}\n-# การจองต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง`;
 }
 
 const shortDate = (iso: string) => formatThaiDate(iso, false);

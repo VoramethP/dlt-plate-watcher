@@ -5,7 +5,9 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { addNumberToConfig, BUTTON, buttonRow, clampReply, COMMAND, commandRow, formatHistory, MODAL, type CommandId } from './actions.js';
+import { BUTTON, buttonRow, clampReply, COMMAND, commandRow, formatHistory, MODAL, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import type { ScheduleEntry } from '../schedule/types.js';
+import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
 
 export interface BotOptions {
@@ -18,6 +20,8 @@ export interface BotOptions {
   commands?: Partial<Record<CommandId, () => Promise<string | { embeds: Embed[] }>>>;
   /** สร้าง embed ของแผงควบคุม (bot เรียกเองตอนต้องโพสต์ใหม่ เช่น หลังแจ้งเตือน หรือ /panel) */
   panel?: () => Promise<Embed>;
+  /** แถวตารางของรถประเภทผู้ใช้ — ไว้บอกว่าเลขที่กรอกจะเปิดวันไหน · ไม่มีก็ข้าม */
+  myEntries?: () => Promise<ScheduleEntry[]>;
 }
 
 export const PANEL_COMMAND = { name: 'panel', description: 'เรียกแผงควบคุม dlt-plate-watcher มาไว้ล่างสุด' };
@@ -115,11 +119,17 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
   if (i.isButton()) {
     switch (i.customId) {
       case BUTTON.addNumber: {
-        const modal = new ModalBuilder().setCustomId(MODAL.addNumber).setTitle('เพิ่มเลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)');
-        const input = new TextInputBuilder()
-          .setCustomId(MODAL.field).setLabel('เลขทะเบียน 1–9999').setStyle(TextInputStyle.Short)
-          .setPlaceholder('เช่น 5555').setMinLength(1).setMaxLength(4).setRequired(true);
-        modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
+        const modal = new ModalBuilder().setCustomId(MODAL.addNumber).setTitle('เลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)');
+        const add = new TextInputBuilder()
+          .setCustomId(MODAL.field).setLabel('เพิ่มเลข 1–9999 (หลายเลขคั่นด้วย , หรือเว้นวรรค)').setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('เช่น 5555, 6000 6464').setMaxLength(300).setRequired(false);
+        const remove = new TextInputBuilder()
+          .setCustomId(MODAL.removeField).setLabel('ลบเลขที่กรอกผิด (ไม่ต้องใส่ก็ได้)').setStyle(TextInputStyle.Paragraph)
+          .setPlaceholder('เช่น 15').setMaxLength(300).setRequired(false);
+        modal.addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(add),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(remove),
+        );
         await i.showModal(modal);
         return;
       }
@@ -138,14 +148,14 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
   }
 
   if (i.isModalSubmit() && i.customId === MODAL.addNumber) {
-    const r = await addNumberToConfig(opts.configPath, i.fields.getTextInputValue(MODAL.field));
-    if (!r.ok) { await i.reply({ content: `❌ ${r.error}`, ...ephemeral }); return; }
-    await i.reply({
-      content: r.already
-        ? `ℹ️ เลข **${r.number}** อยู่ใน wishlist อยู่แล้ว (ทั้งหมด ${r.total} เลข)`
-        : `✅ เพิ่มเลข **${r.number}** ลง wishlist แล้ว (ทั้งหมด ${r.total} เลข) · จะแจ้งเมื่อเลขนี้เปิดจอง — การจองยังต้องทำเองผ่าน ThaID`,
-      ...ephemeral,
-    });
+    await i.deferReply(ephemeral); // อาจต้องโหลดตารางเพื่อบอกวันเปิด
+    const add = parseNumbers(i.fields.getTextInputValue(MODAL.field) ?? '');
+    const remove = parseNumbers(i.fields.getTextInputValue(MODAL.removeField) ?? '');
+    const change = await updateWishlist(opts.configPath, add.valid, remove.valid);
+    const user = i.user.displayName || i.user.username;
+    const ownersBefore = await updateOwners(opts.statePath, user, change.added, change.removed);
+    const entries = opts.myEntries ? await opts.myEntries().catch(() => []) : [];
+    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok())));
   }
 }
 

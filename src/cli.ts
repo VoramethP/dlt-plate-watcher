@@ -78,6 +78,7 @@ async function connectNotifier(): Promise<Notifier | undefined> {
   if (token && channelId) {
     return createBotNotifier({
       token, channelId, configPath: values.config, statePath: env.statePath,
+      myEntries: async () => { const c = await getConfig(); return (await loadSchedule(c.scheduleFileId)).entries.filter((e) => e.vehicleType === c.vehicleType); },
       panel: async () => {
         const c = await getConfig();
         const s = await loadSchedule(c.scheduleFileId).catch(() => null);

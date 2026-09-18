@@ -2,7 +2,8 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { addNumberToConfig, buttonRow, clampReply, commandRow, describeKey, formatHistory } from '../src/notify/actions.js';
+import { buttonRow, clampReply, commandRow, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { loadState } from '../src/state.js';
 
 describe('buttonRow', () => {
   it('มี 4 ปุ่มตามที่ร่างไว้ และปุ่มสุดท้ายเป็นลิงก์ไปหน้าจองของขนส่ง', () => {
@@ -27,27 +28,68 @@ describe('commandRow', () => {
   });
 });
 
-describe('addNumberToConfig', () => {
-  async function tmpConfig() {
-    const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
-    const path = join(dir, 'watch.config.json');
-    await writeFile(path, JSON.stringify({ scheduleFileId: 'x', vehicleType: 'car', wishlist: { numbers: [9999], patterns: [], digitSums: [] } }, null, 2));
-    return path;
-  }
-  it('เพิ่มเลขใหม่แบบเรียงลำดับ', async () => {
-    const path = await tmpConfig();
-    const r = await addNumberToConfig(path, ' 5555 ');
-    expect(r).toEqual({ ok: true, number: 5555, already: false, total: 2 });
-    expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([5555, 9999]);
+async function tmpConfig() {
+  const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
+  const path = join(dir, 'watch.config.json');
+  await writeFile(path, JSON.stringify({ scheduleFileId: 'x', vehicleType: 'car', wishlist: { numbers: [9999], patterns: [], digitSums: [] } }, null, 2));
+  return { path, dir };
+}
+
+describe('parseNumbers', () => {
+  it('รับหลายตัวคั่นด้วย , เว้นวรรค ขึ้นบรรทัด และคัดตัวที่ไม่ใช่เลขทะเบียน', () => {
+    expect(parseNumbers('5555, 6000 6464\n15;5555 12345 abc 0')).toEqual({ valid: [5555, 6000, 6464, 15], invalid: ['12345', 'abc', '0'] });
+    expect(parseNumbers('')).toEqual({ valid: [], invalid: [] });
   });
-  it('เลขซ้ำไม่เขียนไฟล์ซ้ำ', async () => {
-    const path = await tmpConfig();
-    const r = await addNumberToConfig(path, '9999');
-    expect(r).toMatchObject({ ok: true, already: true, total: 1 });
+});
+
+describe('updateWishlist', () => {
+  it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', async () => {
+    const { path } = await tmpConfig();
+    const c = await updateWishlist(path, [5555, 9999, 15], []);
+    expect(c).toEqual({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3 });
+    expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([15, 5555, 9999]);
   });
-  it('ปฏิเสธค่าที่ไม่ใช่ 1–9999', async () => {
-    const path = await tmpConfig();
-    for (const bad of ['0', '10000', 'abc', '']) expect((await addNumberToConfig(path, bad)).ok).toBe(false);
+  it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', async () => {
+    const { path } = await tmpConfig();
+    await updateWishlist(path, [15], []);
+    const c = await updateWishlist(path, [], [15, 42]);
+    expect(c).toMatchObject({ removed: [15], notFound: [42], total: 1 });
+    expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([9999]);
+  });
+  it('ไม่มีอะไรเปลี่ยน → ไม่เขียนไฟล์', async () => {
+    const { path } = await tmpConfig();
+    const before = await readFile(path, 'utf8');
+    await updateWishlist(path, [9999], [42]);
+    expect(await readFile(path, 'utf8')).toBe(before);
+  });
+});
+
+describe('เจ้าของเลข + ข้อความสรุป', () => {
+  const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }];
+  it('updateOwners จำคนแรกที่เพิ่ม และคืนสถานะก่อนแก้', async () => {
+    const { dir } = await tmpConfig();
+    const statePath = join(dir, 'state.json');
+    expect(await updateOwners(statePath, 'somchai', [5555], [])).toEqual({});
+    const before = await updateOwners(statePath, 'nok', [5555, 6000], []);
+    expect(before).toEqual({ 5555: 'somchai' });
+    expect((await loadState(statePath)).owners).toEqual({ 5555: 'somchai', 6000: 'nok' });
+    await updateOwners(statePath, 'nok', [], [5555]);
+    expect((await loadState(statePath)).owners).toEqual({ 6000: 'nok' });
+  });
+  it('describeNumber บอกวันเปิด / วันนี้ / ผ่านแล้ว / ไม่อยู่ในตาราง', () => {
+    expect(describeNumber(5555, entries, '2026-09-15')).toContain('อีก 3 วัน');
+    expect(describeNumber(5555, entries, '2026-09-18')).toContain('วันนี้');
+    expect(describeNumber(5555, entries, '2026-09-19')).toContain('เปิดไปแล้ว');
+    expect(describeNumber(15, entries, '2026-09-15')).toContain('ยังไม่อยู่ในตาราง');
+  });
+  it('wishlistChangeText มีบรรทัดต่อเลขและเตือนเจ้าของเดิม', () => {
+    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3 }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
+    expect(text).toContain('✅ **5555** เพิ่มแล้ว');
+    expect(text).toContain('somchai เล็งไว้ก่อนแล้ว');
+    expect(text).toContain('🗑️ **15**');
+    expect(text).toContain('❔ **42**');
+    expect(text).toContain('❌ "abc"');
+    expect(text).toContain('wishlist ตอนนี้ 3 เลข');
   });
 });
 

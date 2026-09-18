@@ -154,6 +154,8 @@
   <h3>เพิ่มเลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)</h3>
   <div class="hint">ใส่ได้หลายเลข คั่นด้วยจุลภาค ช่องว่าง หรือขึ้นบรรทัดใหม่ · 1–9999</div>
   <textarea id="modalNum" rows="3" placeholder="เช่น 5555, 6000 6464" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
+  <div class="hint" style="margin-top:8px">ลบเลขที่กรอกผิด (ไม่ต้องใส่ก็ได้)</div>
+  <textarea id="modalRemove" rows="1" placeholder="เช่น 15" style="width:100%;background:var(--ctl-bg);color:var(--ctl-text);border:1px solid var(--line);border-radius:6px;padding:8px;font:inherit"></textarea>
   <div class="hint" style="margin-top:6px">bot จะเช็คให้: ซ้ำใน wishlist · มีคนในเซิร์ฟเวอร์เล็งไว้แล้ว · เปิดจองวันไหนในสัปดาห์นี้ · ช่วงนั้นผ่านไปแล้วหรือยัง<br><b style="color:#f59e0b">เช็คไม่ได้:</b> ถูกจองในระบบขนส่งแล้วหรือยัง (ต้องล็อกอิน ThaID ดูเอง)</div>
   <div class="actions"><button class="btn s" id="modalCancel">ยกเลิก</button><button class="btn p" id="modalOk">เพิ่ม</button></div>
 </div></div>
@@ -389,11 +391,15 @@ function checkNumber(n, list, today) {
 $('modalOk').onclick = () => {
   $('modalBg').style.display = 'none';
   const nums = [...new Set($('modalNum').value.split(/[\s,]+/).filter(Boolean).map(Number))];
-  if (!nums.length) return ephemeral('❌ ยังไม่ได้ใส่เลข');
+  const removes = [...new Set($('modalRemove').value.split(/[\s,]+/).filter(Boolean).map(Number))];
+  if (!nums.length && !removes.length) return ephemeral('❌ ยังไม่ได้ใส่เลข');
   let list = $('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean);
-  const results = nums.map((n) => { const r = checkNumber(n, list, $('today').value); if (r.add) list = [...list, n]; return r; });
+  const results = [];
+  for (const n of removes) { if (list.includes(n)) { list = list.filter((x) => x !== n); results.push({ icon: '🗑️', text: `<b>${n}</b> ลบออกจาก wishlist แล้ว` }); } else results.push({ icon: '❔', text: `<b>${n}</b> ไม่มีใน wishlist อยู่แล้ว` }); }
+  for (const n of nums) { const r = checkNumber(n, list, $('today').value); if (r.add) list = [...list, n]; results.push(r); }
+  $('modalRemove').value = '';
   $('wanted').value = [...new Set(list)].sort((a, b) => a - b).join(', '); render();
-  ephemeral(`<b>ผลการเพิ่ม ${nums.length} เลข</b> (wishlist ตอนนี้ ${list.length} เลข)<br>${results.map((r) => `${r.icon} ${r.text}`).join('<br>')}<br><small>การจองยังต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง</small>`);
+  ephemeral(`<b>wishlist ตอนนี้ ${list.length} เลข</b><br>${results.map((r) => `${r.icon} ${r.text}`).join('<br>')}<br><small>การจองยังต้องทำเองผ่าน ThaID · bot เช็คกับระบบขนส่งไม่ได้ว่าเลขถูกจองไปแล้วหรือยัง</small>`);
 };
 document.querySelectorAll('aside input, aside select').forEach((el) => el.addEventListener('input', render));
 render();
