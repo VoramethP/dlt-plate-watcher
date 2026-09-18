@@ -112,6 +112,13 @@ watch               รันค้างไว้: check 08:00 และปิ�
 --dry-run           ไม่ส่ง Discord ไม่บันทึก state (พิมพ์ embed ออกจอแทน)
 ```
 
+## แผนภาพ
+
+ไฟล์ [`drawio/dlt-plate-watcher.drawio`](drawio/dlt-plate-watcher.drawio) เปิดด้วย [draw.io](https://app.diagrams.net) มี 8 หน้า: ภาพรวมระบบ · flow ของ `check` · ตรรกะการแจ้ง · parser PDF · `watch` loop · การ deploy · roadmap · หน้า raw สำหรับร่าง
+ดูเป็นรูปได้ที่ [`drawio/png/`](drawio/png/)
+
+![ภาพรวมระบบ](drawio/png/01-overview.png)
+
 ## โครงสร้าง
 
 ```

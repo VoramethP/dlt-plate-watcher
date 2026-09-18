@@ -17,6 +17,8 @@
 | ประวัติว่าทำอะไรไปบ้าง ทำไมถึงตัดสินใจแบบนั้น | [`docs/WORKLOG.md`](docs/WORKLOG.md) |
 | เหตุผลเบื้องหลังการตัดสินใจเชิงสถาปัตยกรรม | [`docs/adr/`](docs/adr/) |
 | วิธีใช้งานสำหรับคนทั่วไป | [`README.md`](README.md) |
+| แผนภาพ flow ทั้งระบบ แยกหน้า (01 ภาพรวม … 07 roadmap) | [`drawio/dlt-plate-watcher.drawio`](drawio/dlt-plate-watcher.drawio) · PNG ที่ `drawio/png/` |
+| **สิ่งที่ผู้ใช้วาด/ร่างไว้ให้ดู** | หน้า **"99 raw"** ในไฟล์ drawio เดียวกัน — export ด้วยคำสั่งใน `drawio/README.md` แล้วอ่าน PNG |
 
 ### ระบบความจำ 4 ชั้น — แต่ละไฟล์มีหน้าที่ต่างกัน ห้ามเขียนซ้ำกัน
 
@@ -109,6 +111,7 @@ src/schedule/types.ts   VehicleType · ScheduleEntry · Schedule
 src/notify/discord.ts   embed builders + sendDiscord (webhook)
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง
 docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id
+drawio/                 dlt-plate-watcher.drawio (8 หน้า) + png/ export · หน้า 99 raw = พื้นที่ของผู้ใช้
 .github/workflows/      ci.yml (test) · daily-check.yml (cron 08:00 ไทย)
 ```
 

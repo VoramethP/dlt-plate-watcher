@@ -43,6 +43,16 @@
 
 **ทำไม:** state มีไว้กันสแปม ไม่ใช่กันข้อมูลใหม่ · เมื่อเงื่อนไขเปลี่ยน ผลเปลี่ยน ต้องถือเป็นเรื่องใหม่
 
+## [2026-09-18] เปิด public · ล้าง webhook หลุด · drawio 8 หน้า
+
+**ทำอะไร:** ผู้ใช้เผลอวาง webhook จริงใน `.env.example` แล้วผม `git add -A` ติดไป 2 commit → rewrite history + `gc --prune` ก่อน push · เพิ่มเทส repo-hygiene · `gh repo create --public --push` · สร้าง `drawio/dlt-plate-watcher.drawio` 8 หน้า (ภาพรวม / check / planNotifications / parser / watch / deploy / roadmap / 99 raw) จาก generator Python แล้ว export PNG ด้วย draw.io desktop CLI
+
+**ทำไม:** ผู้ใช้อยากได้ flow ทั้งหมดแยกหน้าไว้ประดับ repo และหน้า "raw" ไว้ร่างเองให้ Claude อ่านง่าย (ไม่ใช่โฟลเดอร์ raw — เคยเข้าใจผิด) · เขียน generator แทน XML มือ เพราะแก้ layout ซ้ำหลายรอบ
+
+**ทางเลือกที่ไม่ได้เลือก:** skill diagram-design (ให้ HTML/SVG ไม่ใช่ .drawio ที่แก้ใน draw.io ได้)
+
+**ระวังต่อไป:** ผู้ใช้บอกว่างานถัดไปคือ UI + ปุ่ม — ยังไม่นิยาม ต้อง grill ก่อน (ดู HOTCACHE)
+
 ---
 
 ## งานถัดไป
