@@ -34,8 +34,16 @@ export function clampReply(text: string, max = 1900): string {
   return text.length <= max ? text : text.slice(0, max) + '\n…(ตัดให้พอดีลิมิต)';
 }
 
-/** จัดปุ่มเป็นแถวละ 2 (ตกลงกันว่า 2×2 จะได้กว้างพอดีการ์ด ไม่ล้นบนมือถือ) · แต่ละแถว = ActionRow ของ Discord */
-const rowsOf = <T,>(items: T[], per = 2) => Array.from({ length: Math.ceil(items.length / per) }, (_, i) => ({ type: 1 as const, components: items.slice(i * per, i * per + per) }));
+/**
+ * จำนวนปุ่มต่อแถว · ค่าเริ่มต้น 5 = แถวเดียว
+ * Discord กำหนดความกว้างปุ่มตามข้อความ ยืดเต็มแถวไม่ได้ → แยกแถวละ 2 แล้วขอบไม่ตรงกัน ดูแปลก (ลองแล้ว 18 ก.ย.)
+ * อยากลอง 2×2 ตั้ง DISCORD_BUTTONS_PER_ROW=2 ใน .env
+ */
+export const buttonsPerRow = () => {
+  const n = Number(process.env.DISCORD_BUTTONS_PER_ROW);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 5;
+};
+const rowsOf = <T,>(items: T[], per = buttonsPerRow()) => Array.from({ length: Math.ceil(items.length / per) }, (_, i) => ({ type: 1 as const, components: items.slice(i * per, i * per + per) }));
 
 /** ปุ่มใต้ข้อความแจ้งเตือน · style 1=primary 2=secondary 4=danger 5=link */
 export const NOTIFY_BUTTONS = [

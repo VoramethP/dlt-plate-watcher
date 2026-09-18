@@ -15,14 +15,23 @@ describe('buttonRow', () => {
   });
 });
 
-describe('จัดปุ่ม 2 แถว × 2', () => {
-  it('ปุ่มแจ้งเตือน 4 ปุ่ม → 2 ActionRow แถวละ 2', () => {
-    const rows = buttonRows();
-    expect(rows.map((r) => r.components.length)).toEqual([2, 2]);
-    expect(rows.every((r) => r.type === 1)).toBe(true);
+describe('การจัดแถวปุ่ม', () => {
+  it('ค่าเริ่มต้นแถวเดียว (Discord ยืดปุ่มเต็มแถวไม่ได้ แยกแถวแล้วขอบไม่ตรง)', () => {
+    delete process.env.DISCORD_BUTTONS_PER_ROW;
+    expect(buttonRows().map((r) => r.components.length)).toEqual([4]);
+    expect(commandRows().map((r) => r.components.length)).toEqual([5]);
+    expect(buttonRows().every((r) => r.type === 1)).toBe(true);
   });
-  it('ปุ่มแผง 5 ปุ่ม → 2, 2, 1 (ไม่เกิน 5 แถว)', () => {
+  it('DISCORD_BUTTONS_PER_ROW=2 → 2+2 และ 2+2+1', () => {
+    process.env.DISCORD_BUTTONS_PER_ROW = '2';
+    expect(buttonRows().map((r) => r.components.length)).toEqual([2, 2]);
     expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
+    delete process.env.DISCORD_BUTTONS_PER_ROW;
+  });
+  it('ค่าเพี้ยน → กลับไปแถวเดียว', () => {
+    process.env.DISCORD_BUTTONS_PER_ROW = '9';
+    expect(buttonRows()).toHaveLength(1);
+    delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
 });
 
