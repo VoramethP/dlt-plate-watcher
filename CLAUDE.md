@@ -124,5 +124,6 @@ docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id
 ## ความปลอดภัย
 
 - `.env` (webhook URL) และ `watch.config.json` (wishlist ส่วนตัว) อยู่ใน `.gitignore` · commit ได้เฉพาะ `*.example*`
+- **ห้าม `git add -A` แบบไม่ดู** — ก่อน commit รัน `git diff --cached -- '*.example*'` · เทส `tests/repo-hygiene.test.ts` จับ webhook จริงในไฟล์ตัวอย่าง (เคยหลุดมาแล้ว 2026-09-18)
 - webhook URL คือ secret เต็มตัว — ใครมีก็โพสต์ในช่องได้ · ห้าม log · ห้ามใส่ใน error message
 - `.state/` ไม่มีข้อมูลส่วนบุคคล แต่ก็ไม่ commit (เป็นสถานะเฉพาะเครื่อง)
