@@ -18,36 +18,35 @@ export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeFie
 export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
 export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];
 
-export function commandRow() {
-  return {
-    type: 1,
-    components: [
-      { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } },
-      { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
-      { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
-      { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
-      { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
-    ],
-  };
-}
+export const COMMAND_BUTTONS = [
+  { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตารางสัปดาห์นี้', emoji: { name: '📅' } },
+  { type: 2, style: 2, custom_id: COMMAND.match, label: 'เลขในฝันรอบนี้', emoji: { name: '🎯' } },
+  { type: 2, style: 1, custom_id: COMMAND.check, label: 'เช็คตอนนี้', emoji: { name: '🔄' } },
+  { type: 2, style: 2, custom_id: COMMAND.status, label: 'สถานะ bot', emoji: { name: '🧭' } },
+  { type: 2, style: 2, custom_id: COMMAND.guide, label: 'คู่มือ', emoji: { name: '❓' } },
+];
+export const commandRows = () => rowsOf(COMMAND_BUTTONS);
+/** @deprecated ใช้ commandRows() */
+export const commandRow = () => ({ type: 1, components: COMMAND_BUTTONS });
 
 /** Discord ตอบ interaction ได้ไม่เกิน 2000 ตัวอักษร */
 export function clampReply(text: string, max = 1900): string {
   return text.length <= max ? text : text.slice(0, max) + '\n…(ตัดให้พอดีลิมิต)';
 }
 
-/** action row แบบ JSON ดิบ (discord.js รับได้ตรง ๆ) · style 1=primary 2=secondary 4=danger 5=link */
-export function buttonRow() {
-  return {
-    type: 1,
-    components: [
-      { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
-      { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
-      { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
-      { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
-    ],
-  };
-}
+/** จัดปุ่มเป็นแถวละ 2 (ตกลงกันว่า 2×2 จะได้กว้างพอดีการ์ด ไม่ล้นบนมือถือ) · แต่ละแถว = ActionRow ของ Discord */
+const rowsOf = <T,>(items: T[], per = 2) => Array.from({ length: Math.ceil(items.length / per) }, (_, i) => ({ type: 1 as const, components: items.slice(i * per, i * per + per) }));
+
+/** ปุ่มใต้ข้อความแจ้งเตือน · style 1=primary 2=secondary 4=danger 5=link */
+export const NOTIFY_BUTTONS = [
+  { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
+  { type: 2, style: 2, custom_id: BUTTON.showHistory, label: 'ดูประวัติแชต', emoji: { name: '📜' } },
+  { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
+  { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
+];
+export const buttonRows = () => rowsOf(NOTIFY_BUTTONS);
+/** @deprecated ใช้ buttonRows() — คงไว้ให้เทสเก่า */
+export const buttonRow = () => ({ type: 1, components: NOTIFY_BUTTONS });
 
 /** "5555, 6000 6464\n12345 abc" → valid [5555, 6000, 6464] · invalid ["12345", "abc"] (ไม่ซ้ำ รักษาลำดับ) */
 export function parseNumbers(input: string): { valid: number[]; invalid: string[] } {

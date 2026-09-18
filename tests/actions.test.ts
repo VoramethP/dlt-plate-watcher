@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buttonRow, clampReply, commandRow, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
+import { buttonRow, buttonRows, clampReply, commandRow, commandRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
 import { loadState } from '../src/state.js';
 
 describe('buttonRow', () => {
@@ -12,6 +12,17 @@ describe('buttonRow', () => {
     const link = row.components[3] as { style: number; url?: string };
     expect(link.style).toBe(5);
     expect(link.url).toContain('reserve.dlt.go.th');
+  });
+});
+
+describe('จัดปุ่ม 2 แถว × 2', () => {
+  it('ปุ่มแจ้งเตือน 4 ปุ่ม → 2 ActionRow แถวละ 2', () => {
+    const rows = buttonRows();
+    expect(rows.map((r) => r.components.length)).toEqual([2, 2]);
+    expect(rows.every((r) => r.type === 1)).toBe(true);
+  });
+  it('ปุ่มแผง 5 ปุ่ม → 2, 2, 1 (ไม่เกิน 5 แถว)', () => {
+    expect(commandRows().map((r) => r.components.length)).toEqual([2, 2, 1]);
   });
 });
 

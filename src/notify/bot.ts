@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRow, clampReply, COMMAND, commandRow, formatHistory, MODAL, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, formatHistory, MODAL, parseNumbers, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -51,7 +51,7 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
     if (!opts.panel) return;
     const embed = await opts.panel();
     if (panelId) await target.messages.delete(panelId).catch(() => undefined);
-    const msg = await target.send({ embeds: [embed], components: [commandRow()] });
+    const msg = await target.send({ embeds: [embed], components: commandRows() });
     panelId = msg.id;
     await pinQuietly(msg, log);
   };
@@ -67,7 +67,7 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
   return {
     client,
     async send(embeds: Embed[]) {
-      await target.send({ embeds, components: [buttonRow()] });
+      await target.send({ embeds, components: buttonRows() });
       await sendPanel(); // แผงอยู่ล่างสุดเสมอ จะได้กดถึงโดยไม่ต้องเลื่อนหา
     },
     sendPanel,
