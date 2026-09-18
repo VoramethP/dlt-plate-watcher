@@ -17,6 +17,10 @@ describe('matchEmbed จัดกลุ่มตามเหตุผล', () =>
     const json = JSON.stringify(matchEmbed(m));
     expect(json).not.toContain('\\d');
     expect(json).toContain('เลขคู่สลับ (15)');
+    // ชิปไม่มีหมวดซ้ำ และคั่นด้วย · (ผู้ใช้บอกว่าติดกันอ่านยาก)
+    expect(json).toContain('`5050` · `5151` · `5252`');
+    expect(json).not.toContain('`8ขฉ 5050`');
+    expect(json).toContain('ทุกเลขด้านล่างคือหมวด **8ขฉ**');
   });
   it('ทุก field ไม่เกินลิมิต 1024 ตัวอักษรของ Discord', () => {
     const big = matchEntry({ ...entry, from: 1, to: 9999 }, { numbers: [], patterns: [{ name: 'ทุกเลข', regex: '.' }], digitSums: [] })!;

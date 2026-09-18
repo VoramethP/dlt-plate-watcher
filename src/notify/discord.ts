@@ -52,13 +52,16 @@ export function groupByReason(m: Match): Array<{ reason: string; numbers: number
     .map(([reason, numbers]) => ({ reason, numbers }));
 }
 
-/** เรียงเลขเป็นแถว ๆ ให้พอดีลิมิต 1024 ตัวอักษรของ Discord field */
-function numberLines(prefix: string, numbers: number[], maxChars = 1000): string {
+/**
+ * เรียงเลขเป็นแถว ๆ ให้พอดีลิมิต 1024 ตัวอักษรของ Discord field
+ * ไม่ใส่หมวดในชิป (หัวการ์ดบอกแล้ว) และคั่นด้วย · — ผู้ใช้บอกว่า "8ขฉ 5050 8ขฉ 5151" ติดกันอ่านยาก
+ */
+function numberLines(_prefix: string, numbers: number[], maxChars = 1000): string {
   const perRow = 5;
   const rows: string[] = [];
   let shown = 0;
   for (let i = 0; i < numbers.length; i += perRow) {
-    const row = numbers.slice(i, i + perRow).map((n) => `\`${prefix} ${n}\``).join('  ');
+    const row = numbers.slice(i, i + perRow).map((n) => `\`${n}\``).join(' · ');
     if (rows.join('\n').length + row.length + 40 > maxChars) break;
     rows.push(row);
     shown = i + perRow;
@@ -72,7 +75,7 @@ export function matchEmbed(m: Match): Embed {
   const groups = groupByReason(m);
   return {
     title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${formatThaiDate(e.openDate)}`,
-    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข`,
+    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
     color: COLOR.match,
     fields: [
       ...groups.map((g) => ({ name: `${g.reason} (${g.numbers.length})`, value: numberLines(e.prefix, g.numbers) })),

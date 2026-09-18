@@ -208,7 +208,7 @@ function chipsText(prefix, nums, reasons) {
     rows.push(nums.slice(i, i + per).map((n) => {
       const star = $('optStar').checked && reasons.get(n)?.length > 1 ? '★' : '';
       return `\`${star}${n}\``;
-    }).join(' '));
+    }).join(' · '));
   }
   return rows.join('\n');
 }
@@ -228,7 +228,7 @@ function buildEmbed() {
 
   if (kind === 'match') {
     if (v === 'v1') return { title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${fmt(e.openDate)}`, color,
-      description: `${e.vehicle}\nช่วงที่เปิด: ${range} · ตรงเงื่อนไข **${s.numbers.length}** เลข`,
+      description: `${e.vehicle}\nช่วงที่เปิด: ${range} · ตรงเงื่อนไข **${s.numbers.length}** เลข · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
       fields: [...s.groups.map((g) => ({ name: `${g.reason}${cnt(g.numbers.length)}`, value: chipsText(e.prefix, g.numbers, s.reasons) })),
         { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true }, { name: 'ต้องจดทะเบียนภายใน', value: fmt(e.registerBy, false), inline: true }, ...noteField], footer };
     if (v === 'v3') return { title: `🎯 ${e.prefix} ${e.from}–${e.to} เปิด ${fmt(e.openDate, false)}${countdown}`, color,
