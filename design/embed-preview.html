@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embed Preview</title>
+<meta name="description" content="จำลองการ์ดแจ้งเตือนของ dlt-plate-watcher ใน Discord — สลับดีไซน์ ปรับตัวเลือก แล้วดู embed JSON ที่จะส่งจริง">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1e1f22; --panel: #2b2d31; --chat: #313338; --embed: #2b2d31; --text: #dbdee1; --muted: #949ba4;
+    --line: #3f4147; --link: #00a8fc; --chip: #1e1f22; --chip-text: #f2f3f5; --accent: #22c55e;
+    --btn-primary: #5865f2; --btn-secondary: #4e5058; --btn-danger: #da373c; --btn-link: #4e5058;
+    --ctl-bg: #232428; --ctl-text: #e3e5e8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Noto Sans Thai", "gg sans", system-ui, sans-serif; font-size: 15px; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; min-height: 100vh; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  aside { background: var(--panel); padding: 20px 16px; border-right: 1px solid var(--line); }
+  aside h1 { font-size: 16px; margin: 0 0 4px; }
+  aside p.sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 14px; padding: 10px 12px; }
+  legend { color: var(--muted); font-size: 12px; padding: 0 6px; letter-spacing: .02em; }
+  label.opt { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; }
+  label.opt input { accent-color: var(--btn-primary); }
+  select, input[type=number], input[type=color], input[type=text] { width: 100%; background: var(--ctl-bg); color: var(--ctl-text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; font: inherit; }
+  input[type=color] { height: 36px; padding: 2px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  main { padding: 28px 24px; background: var(--chat); }
+  .msg { display: grid; grid-template-columns: 44px 1fr; gap: 14px; max-width: 760px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg,#22c55e,#0ea5e9); display: grid; place-items: center; font-size: 20px; }
+  .author { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .author b { color: #fff; } .author .tag { background: var(--btn-primary); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+  .author .time { color: var(--muted); font-size: 12px; }
+  .embed { background: var(--embed); border-left: 4px solid var(--accent); border-radius: 4px; padding: 10px 16px 14px 12px; max-width: 560px; }
+  .embed .title { font-weight: 600; color: #fff; font-size: 16px; margin: 4px 0 6px; }
+  .embed .desc { white-space: pre-wrap; line-height: 1.45; margin-bottom: 8px; }
+  .fields { display: grid; gap: 8px 12px; margin-top: 6px; }
+  .fields.cols { grid-template-columns: repeat(3, 1fr); }
+  .field .name { font-weight: 600; color: #fff; font-size: 14px; margin-bottom: 2px; }
+  .field .val { line-height: 1.5; }
+  .field.full { grid-column: 1 / -1; }
+  code, .chip { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: var(--chip); color: var(--chip-text); border-radius: 4px; padding: 1px 5px; font-size: 13.5px; }
+  .chip { display: inline-block; margin: 2px 4px 2px 0; cursor: pointer; border: 1px solid transparent; }
+  .chip:hover { border-color: var(--link); } .chip.star { color: #fde047; }
+  .footer { color: var(--muted); font-size: 12px; margin-top: 10px; display: flex; gap: 6px; align-items: center; }
+  .footer::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(135deg,#22c55e,#0ea5e9); display: inline-block; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; max-width: 640px; }
+  .btn { border: 0; border-radius: 4px; padding: 8px 14px; color: #fff; font: inherit; font-weight: 500; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .btn.p { background: var(--btn-primary); } .btn.s { background: var(--btn-secondary); } .btn.d { background: var(--btn-danger); } .btn.l { background: var(--btn-link); }
+  .btn:active { filter: brightness(.9); }
+  .ephemeral { margin-top: 12px; background: #2b2d31; border-left: 4px solid var(--btn-primary); border-radius: 4px; padding: 10px 14px; max-width: 560px; }
+  .ephemeral small { color: var(--muted); display: block; margin-bottom: 4px; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; place-items: center; }
+  .modal { background: var(--panel); border-radius: 8px; padding: 20px; width: 380px; max-width: 92vw; }
+  .modal h3 { margin: 0 0 12px; color: #fff; font-size: 17px; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111214; color: #fff; padding: 8px 14px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  details.json { max-width: 760px; margin-top: 28px; }
+  details.json summary { cursor: pointer; color: var(--muted); }
+  pre { background: #111214; color: #e3e5e8; padding: 12px; border-radius: 6px; overflow: auto; font-size: 12.5px; line-height: 1.45; }
+  .note { max-width: 760px; margin-top: 18px; color: var(--muted); font-size: 13px; line-height: 1.6; border-top: 1px solid var(--line); padding-top: 12px; }
+  .note b { color: var(--text); }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <h1>🎨 ดีไซน์การ์ดแจ้งเตือน</h1>
+    <p class="sub">ปรับทางซ้าย ดูผลทางขวา ทุกอย่างที่แสดงต้องแปลงเป็น Discord embed ได้จริง (ดู JSON ด้านล่างขวา)</p>
+
+    <fieldset><legend>ประเภทข้อความ</legend>
+      <select id="kind">
+        <option value="match">🎯 เลขที่เล็งไว้จะเปิดจอง</option>
+        <option value="t10">🚦 อีก 10 นาทีเปิดจอง</option>
+        <option value="open">⏰ เตือน 1 วันก่อนเปิด</option>
+        <option value="deadline">⚠️ เตือนหมดเขตจดทะเบียน</option>
+        <option value="schedule">📅 ตารางรอบใหม่</option>
+        <option value="stale">🗓️ ตารางหมดอายุ</option>
+      </select>
+    </fieldset>
+
+    <fieldset><legend>ดีไซน์</legend>
+      <select id="variant">
+        <option value="v2">v2 · การ์ดสรุป (เสนอใหม่)</option>
+        <option value="v1">v1 · แบบปัจจุบัน</option>
+        <option value="v3">v3 · กระชับบรรทัดเดียว</option>
+      </select>
+      <div class="hint">v2 = แถวข้อมูลสำคัญ 3 ช่อง + ชิปเลขจัดกลุ่ม + นับถอยหลัง</div>
+    </fieldset>
+
+    <fieldset><legend>ตัวเลือก</legend>
+      <label class="opt"><input type="checkbox" id="optCountdown" checked> แสดงนับถอยหลัง "อีก N วัน"</label>
+      <label class="opt"><input type="checkbox" id="optStar" checked> ★ เลขที่ตรงหลายเงื่อนไข</label>
+      <label class="opt"><input type="checkbox" id="optCount" checked> แสดงจำนวนเลขต่อกลุ่ม</label>
+      <label class="opt"><input type="checkbox" id="optNote" checked> แสดงหมายเหตุจากขนส่ง</label>
+      <label class="opt"><input type="checkbox" id="optFooter" checked> แสดง footer</label>
+      <label class="opt"><input type="checkbox" id="optButtons" checked> แสดงปุ่ม 4 ปุ่ม</label>
+      <div class="row2" style="margin-top:8px">
+        <div><div class="hint">เลขต่อแถว</div><input type="number" id="perRow" min="3" max="10" value="5"></div>
+        <div><div class="hint">สีแถบซ้าย</div><input type="color" id="accent" value="#22c55e"></div>
+      </div>
+      <div style="margin-top:8px"><div class="hint">ชื่อ bot</div><input type="text" id="botName" value="DLT Plate Watcher"></div>
+    </fieldset>
+
+    <fieldset><legend>ข้อมูลตัวอย่าง</legend>
+      <div class="hint">หมวด · ช่วงเลข (จากตารางจริง 18 ก.ย. 2569)</div>
+      <div class="row2"><input type="text" id="prefix" value="8ขฉ"><input type="text" id="range" value="5001-6500"></div>
+      <div class="hint" style="margin-top:6px">เลขที่ระบุไว้ (คั่นด้วยจุลภาค)</div>
+      <input type="text" id="wanted" value="5555, 6000, 6464">
+    </fieldset>
+  </aside>
+
+  <main>
+    <div class="msg">
+      <div class="avatar">🚗</div>
+      <div>
+        <div class="author"><b id="botNameOut">DLT Plate Watcher</b><span class="tag">APP</span><span class="time">วันนี้ 08:00</span></div>
+        <div id="embed" class="embed"></div>
+        <div id="buttons" class="buttons"></div>
+        <div id="ephemeral"></div>
+      </div>
+    </div>
+
+    <details class="json"><summary>ดู embed JSON ที่จะส่งเข้า Discord จริง (ตามดีไซน์ที่เลือก)</summary><pre id="json"></pre></details>
+
+    <div class="note">
+      <b>ข้อจำกัดของ Discord embed ที่ดีไซน์ต้องอยู่ในกรอบ</b><br>
+      · <b>title ไม่รองรับ markdown</b> (ตัวหนา/โค้ดใช้ได้เฉพาะใน description และ fields)<br>
+      · ตกแต่งได้แค่ title, description, fields (ชื่อ+ค่า, วางเรียง 3 ช่องต่อแถวเมื่อ inline), footer, สีแถบซ้าย 1 สี, รูป thumbnail/image<br>
+      · ข้อความใช้ markdown พื้นฐาน: <b>ตัวหนา</b>, <code>โค้ด</code>, ลิงก์ · ไม่มีสีตัวอักษร ไม่มีตาราง ไม่มีชิปสี · "ชิป" ในนี้คือ inline code<br>
+      · field value ยาวได้ 1024 ตัวอักษร · ทั้ง embed 6000 · ปุ่มสูงสุด 5 ปุ่มต่อแถว 5 แถว · ปุ่มลิงก์ต้องเป็นสีเทาเสมอ<br>
+      · กดชิปเลขในนี้ = คัดลอกเลข (ใน Discord จริงกดคัดลอกไม่ได้ แต่กดค้าง/ลากได้)
+    </div>
+  </main>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal">
+  <h3>เพิ่มเลขที่อยากได้ (เฝ้าให้ ไม่ได้จองแทน)</h3>
+  <div class="hint">เลขทะเบียน 1–9999</div>
+  <input type="text" id="modalNum" placeholder="เช่น 5555" maxlength="4">
+  <div class="actions"><button class="btn s" id="modalCancel">ยกเลิก</button><button class="btn p" id="modalOk">เพิ่ม</button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const THAI_DAYS = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+const fmt = (iso, day = true) => { const d = new Date(iso + 'T00:00:00'); const t = `${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`; return day ? `${THAI_DAYS[d.getDay()]} ${t}` : t; };
+const digitSum = (n) => String(n).split('').reduce((s, d) => s + +d, 0);
+const state = { notified: ['match:2026-09-14:8ขจ:8001-9999:8fe91f12', 'open:2026-09-18:8ขฉ:5001:1', 't10:2026-09-18:8ขฉ'] };
+
+// ---- ข้อมูลตัวอย่าง ----
+function sample() {
+  const [from, to] = $('range').value.split('-').map((s) => +s.trim());
+  const prefix = $('prefix').value.trim() || '8ขฉ';
+  const wanted = new Set($('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean));
+  const patterns = [
+    { name: 'เลขตอง (555 / 5555)', re: /^(\d)\1{2,3}$/ },
+    { name: 'เลขคู่สลับ (5050)', re: /^(\d)(\d)\1\2$/ },
+  ];
+  const reasons = new Map();
+  for (let n = from; n <= to; n++) {
+    const why = [];
+    if (wanted.has(n)) why.push('เลขที่ระบุไว้');
+    for (const p of patterns) if (p.re.test(String(n))) why.push(p.name);
+    if (why.length) reasons.set(n, why);
+  }
+  const order = ['เลขที่ระบุไว้', ...patterns.map((p) => p.name)];
+  const groups = new Map();
+  for (const [n, why] of reasons) for (const r of why) groups.set(r, [...(groups.get(r) ?? []), n]);
+  return {
+    entry: { prefix, from, to, openDate: '2026-09-18', registerBy: '2026-10-18', vehicle: 'รถยนต์นั่งส่วนบุคคลไม่เกิน 7 คน (รถเก๋ง / กระบะ 4 ประตู)', note: 'จดทะเบียนถึงเลข 8ขจ-1028' },
+    numbers: [...reasons.keys()], reasons,
+    groups: [...groups.entries()].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([reason, numbers]) => ({ reason, numbers })),
+    today: '2026-09-15',
+  };
+}
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+
+// ---- สร้าง "embed JSON" (สิ่งที่ส่งจริง) แล้วค่อย render จาก JSON นั้น → สิ่งที่เห็น = สิ่งที่ Discord จะได้ ----
+function chipsText(prefix, nums, reasons) {
+  const per = +$('perRow').value || 5;
+  const rows = [];
+  for (let i = 0; i < nums.length; i += per) {
+    rows.push(nums.slice(i, i + per).map((n) => {
+      const star = $('optStar').checked && reasons.get(n)?.length > 1 ? '★' : '';
+      return `\`${star}${n}\``;
+    }).join(' '));
+  }
+  return rows.join('\n');
+}
+function buildEmbed() {
+  const s = sample(); const e = s.entry; const kind = $('kind').value; const v = $('variant').value;
+  const opt = (id) => $(id).checked;
+  const color = parseInt($('accent').value.slice(1), 16);
+  const footer = opt('optFooter') ? { text: 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID' } : undefined;
+  const until = daysBetween(s.today, e.openDate);
+  const countdown = opt('optCountdown') ? (until === 0 ? ' · วันนี้' : ` · อีก ${until} วัน`) : ''; // title ไม่รองรับ markdown
+  const range = `**${e.prefix}** ${e.from} – ${e.to}`;
+  const cnt = (n) => (opt('optCount') ? ` (${n})` : '');
+  const noteField = opt('optNote') && e.note ? [{ name: 'หมายเหตุจากขนส่ง', value: e.note }] : [];
+
+  if (kind === 'match') {
+    if (v === 'v1') return { title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${fmt(e.openDate)}`, color,
+      description: `${e.vehicle}\nช่วงที่เปิด: ${range} · ตรงเงื่อนไข **${s.numbers.length}** เลข`,
+      fields: [...s.groups.map((g) => ({ name: `${g.reason}${cnt(g.numbers.length)}`, value: chipsText(e.prefix, g.numbers, s.reasons) })),
+        { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true }, { name: 'ต้องจดทะเบียนภายใน', value: fmt(e.registerBy, false), inline: true }, ...noteField], footer };
+    if (v === 'v3') return { title: `🎯 ${e.prefix} ${e.from}–${e.to} เปิด ${fmt(e.openDate, false)}${countdown}`, color,
+      description: s.groups.map((g) => `**${g.reason}**${cnt(g.numbers.length)} · ${g.numbers.slice(0, 12).map((n) => `\`${n}\``).join(' ')}${g.numbers.length > 12 ? ` …+${g.numbers.length - 12}` : ''}`).join('\n') + `\n\n10:00–16:00 น. · จดภายใน ${fmt(e.registerBy, false)}`, footer };
+    // v2
+    return { title: `🎯 ${s.numbers.length} เลขที่เล็งไว้ จะเปิดจอง ${fmt(e.openDate, false)}${countdown}`, color,
+      description: `${e.vehicle}`,
+      fields: [
+        { name: '📅 วันเปิดจอง', value: fmt(e.openDate), inline: true },
+        { name: '🕙 เวลา', value: '10:00 – 16:00 น.', inline: true },
+        { name: '🔢 ช่วงที่เปิด', value: range, inline: true },
+        ...s.groups.map((g) => ({ name: `${g.reason}${cnt(g.numbers.length)}`, value: chipsText(e.prefix, g.numbers, s.reasons) })),
+        { name: '📝 ต้องจดทะเบียนภายใน', value: `${fmt(e.registerBy, false)} (${daysBetween(e.openDate, e.registerBy)} วันหลังเปิดจอง)`, inline: true },
+        { name: '🪪 เตรียมให้พร้อม', value: 'แอป ThaID · เลขตัวถัง · ชื่อตรงบัตร', inline: true },
+        ...noteField,
+      ], footer };
+  }
+  if (kind === 't10') return { title: `🚦 อีก 10 นาที เปิดจอง ${range}`, color: 0xf59e0b,
+    description: v === 'v1' ? `เลขที่เล็งไว้วันนี้: ${s.numbers.slice(0, 15).map((n) => `\`${n}\``).join(' ')}\nเปิดแอป ThaID ให้พร้อม แล้วเข้า https://reserve.dlt.go.th/reserve/v2/?menu=resv_m ตอน 10:00 น.` : `เปิดแอป ThaID ให้พร้อม แล้วกดปุ่ม **เข้าสู่เว็บไซต์** ตอน 10:00 น. ตรง`,
+    fields: v === 'v1' ? [] : [{ name: `เลขที่เล็งไว้วันนี้${cnt(s.numbers.length)}`, value: chipsText(e.prefix, s.numbers.slice(0, 20), s.reasons) }, { name: '⏱️ เคล็ดลับ', value: 'เข้าหน้าจองไว้ก่อน 09:58 แล้ว refresh ตอน 10:00 · เลขยอดนิยมหมดในไม่กี่วินาที' }], footer };
+  if (kind === 'open') return { title: `⏰ พรุ่งนี้เปิดจอง ${range}`, color: 0xf59e0b,
+    description: `${fmt(e.openDate)} เวลา 10:00 น.${v === 'v1' ? '\nเตรียม: แอป ThaID ล็อกอินได้ · เลขตัวถัง · ชื่อ-นามสกุลตรงบัตร' : ''}`,
+    fields: v === 'v1' ? [] : [{ name: '✅ เช็คลิสต์คืนนี้', value: '☐ แอป ThaID ล็อกอินได้\n☐ เลขตัวถัง 17 หลัก\n☐ คำนำหน้า ชื่อ-นามสกุล ตรงบัตร' }, { name: `เลขที่จะเปิด${cnt(s.numbers.length)}`, value: chipsText(e.prefix, s.numbers.slice(0, 10), s.reasons) }], footer };
+  if (kind === 'deadline') return { title: `⚠️ อีก 7 วัน หมดเขตจดทะเบียนเลขหมวด ${e.prefix}`, color: 0xf59e0b,
+    description: `ต้องจดทะเบียนภายใน ${fmt(e.registerBy)} ไม่งั้นเลขที่จองได้จะหลุด`,
+    fields: v === 'v1' ? [] : [{ name: '📍 ไปที่', value: 'สำนักงานขนส่งที่จอง', inline: true }, { name: '📎 เอกสาร', value: 'หลักฐานการจอง · ทะเบียนรถ · บัตรประชาชน', inline: true }], footer };
+  if (kind === 'schedule') return { title: '📅 ขนส่งออกตารางเปิดจองรอบใหม่', color: 0x3b82f6,
+    description: v === 'v1' ? 'อัปเดตเมื่อ Mon, 14 Sep 2026 01:58:13 GMT' : `สัปดาห์ **14 – 18 กันยายน 2569** · อัปเดต จ. 14 ก.ย. 08:58 น.`,
+    fields: [
+      { name: 'รถเก๋ง / กระบะ 4 ประตู', value: 'จ. 14 → **8ขจ** 8001–9999\nอ. 15 → **8ขฉ** 1–2000\nพ. 16 → **8ขฉ** 2001–3500\nพฤ. 17 → **8ขฉ** 3501–5000\nศ. 18 → **8ขฉ** 5001–6500' + (v === 'v1' ? '' : '  ← มีเลขที่เล็งไว้ 🎯') },
+      { name: 'รถตู้', value: 'จ.–ศ. → **1นฎ** 2801–3300', inline: true }, { name: 'กระบะบรรทุก', value: 'จ.–ศ. → **4ฒฐ** 6601–7600', inline: true },
+    ], footer };
+  return { title: '🗓️ ตารางที่ตั้งไว้หมดอายุแล้ว', color: 0x6b7280,
+    description: `ตารางล่าสุดจบไปตั้งแต่ ${fmt('2026-09-18')} แต่ไฟล์บน Drive ยังไม่เปลี่ยน\nถ้าขนส่งย้ายไปใช้ไฟล์ใหม่ ให้เปิดหน้าตาราง คัดลอกลิงก์ iframe มาใส่ \`scheduleFileId\``, footer };
+}
+
+// ---- render embed JSON → DOM (markdown ย่อย: **bold**, `code`, ลิงก์) ----
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function md(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, (_, t) => `<span class="chip${t.startsWith('★') ? ' star' : ''}" data-num="${t.replace('★', '')}">${t}</span>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/(https?:\/\/\S+)/g, '<a href="$1" style="color:var(--link)" target="_blank" rel="noopener">$1</a>')
+    .replace(/\n/g, '<br>');
+}
+function render() {
+  const embed = buildEmbed();
+  document.documentElement.style.setProperty('--accent', '#' + embed.color.toString(16).padStart(6, '0'));
+  $('botNameOut').textContent = $('botName').value || 'DLT Plate Watcher';
+  let html = `<div class="title">${esc(embed.title)}</div>`;
+  if (embed.description) html += `<div class="desc">${md(embed.description)}</div>`;
+  if (embed.fields?.length) {
+    // Discord: inline ติดกันสูงสุด 3 ช่องต่อแถว · ไม่ inline = เต็มแถว
+    html += '<div class="fields cols">' + embed.fields.map((f) => `<div class="field${f.inline ? '' : ' full'}"><div class="name">${esc(f.name)}</div><div class="val">${md(f.value)}</div></div>`).join('') + '</div>';
+  }
+  if (embed.footer) html += `<div class="footer">${esc(embed.footer.text)}</div>`;
+  $('embed').innerHTML = html;
+  $('buttons').style.display = $('optButtons').checked ? '' : 'none';
+  $('json').textContent = JSON.stringify({ embeds: [embed], components: $('optButtons').checked ? [{ type: 1, components: [
+    { type: 2, style: 1, custom_id: 'add_number', label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
+    { type: 2, style: 2, custom_id: 'show_history', label: 'ดูประวัติแชต', emoji: { name: '📜' } },
+    { type: 2, style: 4, custom_id: 'clear_history', label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
+    { type: 2, style: 5, url: 'https://reserve.dlt.go.th/reserve/v2/?menu=resv_m', label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } } ] }] : [] }, null, 2);
+  const chars = JSON.stringify(embed).length;
+  $('json').textContent += `\n\n// ความยาวรวม ~${chars} ตัวอักษร (ลิมิต 6000)`;
+}
+
+// ---- ปุ่ม + interaction จำลอง ----
+$('buttons').innerHTML = `
+  <button class="btn p" data-act="add">🔢 กรอกเลขที่อยากจอง</button>
+  <button class="btn s" data-act="history">📜 ดูประวัติแชต</button>
+  <button class="btn d" data-act="clear">🧹 ลบประวัติแชตเก่า</button>
+  <a class="btn l" href="https://reserve.dlt.go.th/reserve/v2/?menu=resv_m" target="_blank" rel="noopener">🌐 เข้าสู่เว็บไซต์ ↗</a>`;
+const toast = (t) => { $('toast').textContent = t; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 1400); };
+const ephemeral = (t) => { $('ephemeral').innerHTML = `<div class="ephemeral"><small>👁️ เห็นเฉพาะคุณ · ปิดข้อความนี้ได้</small>${t}</div>`; };
+const describe = (k) => { const [kind, ...r] = k.split(':'); return { match: `🎯 ${fmt(r[0], false)} · ${r[1]} ${r[2]}`, open: `⏰ เตือนก่อนเปิด ${r[1]}`, t10: `🚦 ปิง 10 นาทีก่อนเปิด ${r[1]}` }[kind] ?? k; };
+document.addEventListener('click', (ev) => {
+  const chip = ev.target.closest('.chip'); if (chip) { navigator.clipboard?.writeText(chip.dataset.num); toast(`คัดลอก ${chip.dataset.num} แล้ว`); return; }
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  if (b.dataset.act === 'add') { $('modalBg').style.display = 'grid'; $('modalNum').value = ''; $('modalNum').focus(); }
+  if (b.dataset.act === 'history') ephemeral(`<b>แจ้งไปแล้ว ${state.notified.length} รายการ (ล่าสุดก่อน)</b><br>${[...state.notified].reverse().map(describe).join('<br>')}`);
+  if (b.dataset.act === 'clear') ephemeral('ลบข้อความเก่าของ bot ไป 3 ข้อความ (เก็บข้อความนี้ไว้)');
+});
+$('modalCancel').onclick = () => ($('modalBg').style.display = 'none');
+$('modalOk').onclick = () => {
+  const n = +$('modalNum').value; $('modalBg').style.display = 'none';
+  if (!(n >= 1 && n <= 9999)) return ephemeral(`❌ "${$('modalNum').value}" ไม่ใช่เลขทะเบียน 1–9999`);
+  const list = $('wanted').value.split(',').map((s) => +s.trim()).filter(Boolean);
+  if (list.includes(n)) return ephemeral(`ℹ️ เลข <b>${n}</b> อยู่ใน wishlist อยู่แล้ว`);
+  $('wanted').value = [...list, n].sort((a, b) => a - b).join(', '); render();
+  ephemeral(`✅ เพิ่มเลข <b>${n}</b> ลง wishlist แล้ว (ทั้งหมด ${list.length + 1} เลข) · จะแจ้งเมื่อเลขนี้เปิดจอง — การจองยังต้องทำเองผ่าน ThaID`);
+};
+document.querySelectorAll('aside input, aside select').forEach((el) => el.addEventListener('input', render));
+render();
+</script>
+</body>
+</html>

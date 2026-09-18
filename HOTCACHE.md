@@ -10,7 +10,7 @@ CLI (Node 22 + TS) โหลด PDF ตารางเปิดจองเล�
 
 ## ตอนนี้อยู่ตรงไหน
 
-**v0.2**: เพิ่มโหมด bot + ปุ่ม 4 ปุ่ม (ADR-0004) และ embed จัดกลุ่มตามชื่อ pattern — **ยังไม่ได้ทดสอบ bot กับ Discord จริง** (ผู้ใช้ยังไม่ได้สร้าง bot token) · v0.1 ใช้งานได้จริงแล้ว ทดสอบกับ PDF จริงสัปดาห์ 14–18 ก.ย. 2569 อ่านได้ครบ 15 แถว · 26 เทสผ่าน · typecheck ผ่าน
+**v0.2**: โหมด bot + ปุ่ม 4 ปุ่ม (ADR-0004) **ทดสอบกับ Discord จริงแล้ว ปุ่มทำงานครบ** (bot = DLT Plate Watcher#7297 ช่อง #dlt-plate-watcher) · กำลังออกแบบการ์ดใหม่ที่ `design/embed-preview.html` (เปิดด้วย `python3 -m http.server 4173 --directory design`) ผู้ใช้จะปรับดีไซน์เองแล้วให้เอาไปใส่ `notify/discord.ts` · v0.1 ใช้งานได้จริงแล้ว ทดสอบกับ PDF จริงสัปดาห์ 14–18 ก.ย. 2569 อ่านได้ครบ 15 แถว · 26 เทสผ่าน · typecheck ผ่าน
 ส่ง Discord จริงสำเร็จ · repo public ที่ github.com/VoramethP/dlt-plate-watcher (push แล้ว) · มี `drawio/` 8 หน้า + PNG · ยังไม่ได้: ยืนยันว่า file id คงที่ข้ามสัปดาห์
 
 ## กฎเหล็ก
@@ -21,7 +21,7 @@ CLI (Node 22 + TS) โหลด PDF ตารางเปิดจองเล�
 
 ## งานถัดไป
 
-1. ผู้ใช้สร้าง bot token + เชิญ bot + ใส่ `.env` (ขั้นตอนใน README › โหมด bot) แล้ว `npm run watch` → กดปุ่มทั้ง 4 ทดสอบจริง · ที่น่าจะพังก่อน: สิทธิ์ Manage Messages ตอนกด "ลบประวัติ", modal บนมือถือ
+1. รอผู้ใช้ปรับ `design/embed-preview.html` (v2 การ์ดสรุป คือข้อเสนอ) → พอโอเค เอา `buildEmbed()` ของ variant ที่เลือกไปเขียนใน `src/notify/discord.ts` + อัปเดตเทส discord.test.ts · จำไว้: **title ของ embed ไม่รองรับ markdown**
 2. หน้า 99 raw ของผู้ใช้ทำครบแล้ว (pattern อ่านง่าย + ปุ่ม 4 ปุ่ม) → ถ้าผู้ใช้วาดเพิ่ม export หน้าสุดท้าย (`-p 9`) มาดู
 3. ผู้ใช้แก้ wishlist ให้เป็นเลขจริง (หรือกดปุ่ม 🔢 เพิ่มทีละเลข) + ตั้ง secrets บน GitHub ถ้าจะใช้ daily-check
 4. จันทร์ 21 ก.ย. 2569 รัน `npm run schedule` เช็คว่า file id เดิมได้ตารางใหม่ไหม → บันทึกผลลง ADR-0003
