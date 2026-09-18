@@ -1,0 +1,45 @@
+import { readFile } from 'node:fs/promises';
+import { z } from 'zod';
+import { normalizeDriveFileId } from './schedule/fetch.js';
+
+const VehicleTypeSchema = z.enum(['car', 'van', 'pickup']);
+
+export const ConfigSchema = z.object({
+  /** file id (หรือ URL) ของ PDF ตารางบน Google Drive — คัดลอกจาก iframe ในหน้า "ตารางเปิดจองหมายเลข" ของขนส่ง */
+  scheduleFileId: z.string().transform((v, ctx) => {
+    const id = normalizeDriveFileId(v);
+    if (!id) ctx.addIssue({ code: 'custom', message: 'ไม่ใช่ Google Drive file id หรือ URL ที่รู้จัก' });
+    return id ?? '';
+  }),
+  vehicleType: VehicleTypeSchema,
+  wishlist: z.object({
+    /** เลขที่อยากได้ตรง ๆ 1-9999 */
+    numbers: z.array(z.number().int().min(1).max(9999)).default([]),
+    /** regex จับกับเลขแบบไม่เติมศูนย์ เช่น "^(\\d)\\1{3}$" = เลขตอง 4 ตัว */
+    patterns: z.array(z.string()).default([]),
+    /** ผลรวมเลขที่อยากได้ เช่น 9, 19, 24 */
+    digitSums: z.array(z.number().int().min(1).max(36)).default([]),
+  }),
+  reminders: z.object({
+    daysBeforeOpen: z.array(z.number().int().min(0)).default([1]),
+    daysBeforeRegisterDeadline: z.array(z.number().int().min(0)).default([7, 1]),
+  }).default({ daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] }),
+});
+
+export type Config = z.infer<typeof ConfigSchema>;
+
+export async function loadConfig(path = 'watch.config.json'): Promise<Config> {
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch {
+    throw new Error(`ไม่พบ ${path} — คัดลอกจาก watch.config.example.json แล้วแก้ให้เป็นของคุณ`);
+  }
+  const parsed = ConfigSchema.safeParse(JSON.parse(raw));
+  if (!parsed.success) {
+    throw new Error(`${path} ไม่ถูกต้อง:\n${z.prettifyError(parsed.error)}`);
+  }
+  // ตรวจ regex ตั้งแต่ตอนโหลด จะได้ไม่ไปพังกลางดึกตอน cron รัน
+  for (const p of parsed.data.wishlist.patterns) new RegExp(p, 'u');
+  return parsed.data;
+}

@@ -1,0 +1,36 @@
+{
+  "name": "dlt-plate-watcher",
+  "version": "0.1.0",
+  "description": "เฝ้าตารางเปิดจองเลขทะเบียนรถของกรมการขนส่งทางบก แล้วแจ้งเตือนผ่าน Discord (แจ้งเตือนอย่างเดียว ไม่จองแทน)",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "check": "node --env-file-if-exists=.env --import tsx src/cli.ts check",
+    "schedule": "tsx src/cli.ts schedule",
+    "watch": "node --env-file-if-exists=.env --import tsx src/cli.ts watch",
+    "match": "tsx src/cli.ts match",
+    "dev": "node --env-file-if-exists=.env --import tsx src/cli.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "unpdf": "^1.8.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  },
+  "bin": {
+    "dlt-plate-watcher": "dist/cli.js"
+  }
+}

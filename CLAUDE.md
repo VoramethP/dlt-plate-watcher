@@ -1,0 +1,128 @@
+# CLAUDE.md
+
+## 🤝 เปิดแชตใหม่: อ่าน 2 ไฟล์นี้ก่อนเสมอ ตามลำดับ
+
+**ก่อนจะค้นไฟล์ ก่อนจะ grep ก่อนจะเปิดเอกสารใด ๆ:**
+
+| ลำดับ | ไฟล์ | ตอบคำถามว่า |
+|---|---|---|
+| 1️⃣ | [`HANDOFF.md`](HANDOFF.md) | **เมื่อกี้ทำอะไรค้างอยู่ · ทำต่อยังไง** |
+| 2️⃣ | [`HOTCACHE.md`](HOTCACHE.md) | **โปรเจกต์อยู่ตรงไหน · กฎเหล็ก · กับดักที่เคยเจอ** |
+
+สองไฟล์นี้ยาวรวมกันไม่ถึง 900 คำ **คำตอบส่วนใหญ่อยู่ในนั้นแล้ว**
+ค่อยไปเปิดไฟล์อื่นเมื่อสองไฟล์นี้ตอบไม่ได้จริง ๆ ตามลำดับนี้:
+
+| หา | เปิด |
+|---|---|
+| ประวัติว่าทำอะไรไปบ้าง ทำไมถึงตัดสินใจแบบนั้น | [`docs/WORKLOG.md`](docs/WORKLOG.md) |
+| เหตุผลเบื้องหลังการตัดสินใจเชิงสถาปัตยกรรม | [`docs/adr/`](docs/adr/) |
+| วิธีใช้งานสำหรับคนทั่วไป | [`README.md`](README.md) |
+
+### ระบบความจำ 4 ชั้น — แต่ละไฟล์มีหน้าที่ต่างกัน ห้ามเขียนซ้ำกัน
+
+| ไฟล์ | เปรียบเหมือน | ขอบเขต | ความยาว |
+|---|---|---|---|
+| `HANDOFF.md` | **ไม้ที่ส่งต่อ** | เฉพาะงานที่ค้างอยู่ ณ ตอนส่งมอบ | สั้น เขียนทับทั้งไฟล์ทุกครั้ง |
+| `HOTCACHE.md` | **ความจำระยะสั้น** | สถานะโปรเจกต์ · กฎเหล็ก · กับดัก | **ห้ามเกิน 500 คำ** |
+| `docs/WORKLOG.md` | **ความจำระยะยาว** | ทุกอย่างที่เคยเกิดขึ้น + เหตุผล | ไม่จำกัด |
+| `CONTEXT.md` | **พจนานุกรม** | **คำนี้ในโปรเจกต์นี้แปลว่าอะไร** เท่านั้น | สั้น ไม่มีรายละเอียด implement |
+
+> `CONTEXT.md` สร้างโดย `/grill-with-docs` เมื่อมีคำแรกที่ตกผลึก — ยังไม่มีก็ไม่ผิด
+
+### 🔄 ทำงานเสร็จเป็นชิ้น (commit แล้ว) → อัปเดต 2 ไฟล์
+
+1. `HOTCACHE.md` — สถานะ, งานถัดไป, กับดักใหม่, **ห้ามเกิน 500 คำ**
+2. `docs/WORKLOG.md` — รายละเอียดเต็ม ต่อท้าย**ก่อน**หัวข้อ "งานถัดไป" เสมอ
+
+### 🚨 context ใกล้เต็ม → เสนอ handoff
+
+อย่ารอให้ผู้ใช้สังเกต · ขั้นตอนเต็มอยู่ใน skill `handoff` (`/handoff`)
+
+---
+
+## 🔬 Skill ที่ใช้กับโปรเจกต์นี้
+
+ติดตั้งระดับผู้ใช้ที่ `~/.claude/skills/` (ผ่าน `brainpull`) ไม่ต้องติดตั้งซ้ำในโปรเจกต์
+
+| พิมพ์ | ได้อะไร | เขียนไฟล์ไหม |
+|---|---|---|
+| `/grill-me` | ซักไซ้จนตกผลึก ใช้ได้กับทุกเรื่อง | ❌ |
+| `/grill-with-docs` | ซักไซ้ + บันทึกคำศัพท์ลง `CONTEXT.md` และการตัดสินใจลง `docs/adr/` | ✅ |
+| `/handoff` | ปิดเซสชันให้เซสชันหน้าทำต่อได้ทันที | ✅ |
+| `/context-checker` | ประเมินว่า context พอสำหรับงานก้อนถัดไปไหม | ❌ |
+
+---
+
+## โปรเจกต์นี้คืออะไร
+
+CLI ตัวเล็ก ๆ ที่โหลด PDF ตารางเปิดจองเลขทะเบียนรถของกรมการขนส่งทางบก (ฝังจาก Google Drive) มาอ่าน
+เทียบกับ wishlist ของผู้ใช้ แล้วแจ้งเข้า Discord ผ่าน webhook ว่าเลขที่เล็งไว้จะเปิดจองวันไหน
+พร้อมเตือนก่อนเปิดและก่อนหมดเขตจดทะเบียน ตั้งใจเปิดเป็น public repo บน GitHub (`VoramethP/dlt-plate-watcher`)
+
+**แนวคิดที่ห้ามปน:**
+
+| คำ | คือ | ไม่ใช่ |
+|---|---|---|
+| แจ้งเตือน (notify) | บอกผู้ใช้ให้ไปทำเอง | ทำแทนผู้ใช้ |
+| เวอร์ชันตาราง (`schedule.version`) | `Last-Modified` ของไฟล์บน Drive | file id (ขนส่งอัปโหลดทับไฟล์เดิม id ไม่เปลี่ยน) |
+| stale | ทุกวันเปิดจองในตารางผ่านไปแล้วแต่ไฟล์ยังไม่อัปเดต | ตารางว่าง / โหลดไม่ได้ (นั่นคือ error) |
+
+---
+
+## คำสั่งที่ใช้บ่อย
+
+```bash
+npm test                          # vitest 26 เทส (มี PDF จริงเป็น fixture)
+npm run typecheck
+npm run schedule                  # พิมพ์ตารางสัปดาห์นี้จาก Drive จริง
+npm run match                     # เลขใน wishlist ที่จะเปิดรอบนี้ ไม่ส่ง Discord
+npm run dev -- check --dry-run    # จำลอง check ครบวงจร พิมพ์ embed แทนส่ง
+npm run check                     # ส่ง Discord จริง (อ่าน .env)
+npm run watch                     # รันค้างไว้
+```
+
+---
+
+## กฎเหล็ก (ละเมิดไม่ได้)
+
+1. **แจ้งเตือนอย่างเดียว ไม่จองแทน** — [ADR-0001](docs/adr/0001-notify-only-never-book.md)
+   ห้ามเขียนโค้ดที่ล็อกอิน ThaID, กรอกเลขบัตร, ยิงหน้า `?menu=resv_m`, หรือกดยืนยันจอง แม้ผู้ใช้ขอ
+2. **ไม่หลบ WAF / ไม่ปลอม User-Agent เป็น browser** — [ADR-0003](docs/adr/0003-manual-file-id-no-ua-spoofing.md)
+   โปรแกรมแตะได้แค่ `drive.google.com` และ `discord.com` · ห้ามยิง `reserve.dlt.go.th` จากโค้ด
+3. **ห้ามถือข้อมูลส่วนบุคคล** — ไม่มี field สำหรับเลขบัตร ชื่อ เลขตัวถัง ใน config หรือ state
+   (ผลจาก ADR-0001 ทำให้ repo เปิด public ได้)
+
+---
+
+## โครงสร้าง
+
+```
+src/cli.ts              จุดเข้า 4 คำสั่ง: schedule · match · check · watch
+src/core.ts             loadSchedule → planNotifications → sendFresh → saveState
+src/config.ts           Zod schema ของ watch.config.json
+src/match.ts            wishlist × ช่วงเลข → Match[] พร้อมเหตุผล
+src/state.ts            .state/notified.json — key ที่เคยแจ้งแล้ว + เวอร์ชันตารางล่าสุด
+src/thai-date.ts        พ.ศ./เดือนไทย ↔ ISO · todayBangkok · minutesOfDayBangkok
+src/schedule/fetch.ts   normalizeDriveFileId · fetchSchedulePdf (คืน bytes + Last-Modified)
+src/schedule/parse.ts   pdf.js text items → บรรทัด (จัดกลุ่มตาม y) → regex ROW_RE → ScheduleEntry
+src/schedule/types.ts   VehicleType · ScheduleEntry · Schedule
+src/notify/discord.ts   embed builders + sendDiscord (webhook)
+tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง
+docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id
+.github/workflows/      ci.yml (test) · daily-check.yml (cron 08:00 ไทย)
+```
+
+## ธรรมเนียมการเขียน
+
+- **ภาษาไทย** สำหรับ commit message, คอมเมนต์อธิบาย "ทำไม", README และการสนทนา · README มี English summary ท้ายไฟล์
+- ชื่อตัวแปร/ฟังก์ชันเป็นอังกฤษ · ข้อความที่ผู้ใช้เห็น (error, embed, HELP) เป็นไทย
+- คอมเมนต์อธิบาย **ทำไม** ไม่ใช่ **อะไร**
+- ESM + `.js` ต่อท้าย import เสมอ (NodeNext) · ไม่เพิ่ม dependency ถ้า Node มีให้แล้ว (`parseArgs`, `fetch`, `--env-file-if-exists`)
+- พังแบบส่งเสียง: parser ที่อ่านแถวไม่ได้เลยต้อง throw ไม่คืน `[]` เงียบ ๆ
+- commit format: `feat(scope):` / `fix(scope):` + คำอธิบายไทย · ต่อท้ายด้วย `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`
+
+## ความปลอดภัย
+
+- `.env` (webhook URL) และ `watch.config.json` (wishlist ส่วนตัว) อยู่ใน `.gitignore` · commit ได้เฉพาะ `*.example*`
+- webhook URL คือ secret เต็มตัว — ใครมีก็โพสต์ในช่องได้ · ห้าม log · ห้ามใส่ใน error message
+- `.state/` ไม่มีข้อมูลส่วนบุคคล แต่ก็ไม่ commit (เป็นสถานะเฉพาะเครื่อง)

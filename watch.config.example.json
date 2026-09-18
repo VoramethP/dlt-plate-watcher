@@ -1,0 +1,27 @@
+{
+  "scheduleFileId": "https://drive.google.com/file/d/1UP-epw_Yxn3j8OrWsj10oKKxind5rktI/preview",
+  "vehicleType": "car",
+  "wishlist": {
+    "numbers": [
+      9,
+      99,
+      999,
+      9999,
+      1234
+    ],
+    "patterns": [
+      "^(\\d)\\1{2,3}$",
+      "^(\\d)(\\d)\\1\\2$"
+    ],
+    "digitSums": []
+  },
+  "reminders": {
+    "daysBeforeOpen": [
+      1
+    ],
+    "daysBeforeRegisterDeadline": [
+      7,
+      1
+    ]
+  }
+}
