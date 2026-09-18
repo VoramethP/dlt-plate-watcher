@@ -5,7 +5,7 @@ import {
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
-import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, embedToText, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
+import { BUTTON, buttonRows, clampReply, COMMAND, commandRows, embedToText, formatHistory, MODAL, MODAL_TEXT, parseNumbers, readPatternRules, shareRow, updateOwners, updateWishlist, wishlistChangeText, type CommandId } from './actions.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import { todayBangkok } from '../thai-date.js';
 import { guideEmbeds, type Embed, type Notifier } from './discord.js';
@@ -116,7 +116,7 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     await i.deferReply(ephemeral); // คำสั่งต้องโหลด PDF อาจเกิน 3 วินาที
     try {
       const out = await run();
-      await i.editReply(typeof out === 'string' ? clampReply(out) : { embeds: out.embeds.slice(0, 10) });
+      await i.editReply(typeof out === 'string' ? clampReply(out) : { embeds: out.embeds.slice(0, 10), components: [shareRow()] });
     } catch (err) {
       await i.editReply(`❌ ${err instanceof Error ? err.message : err}`);
     }
@@ -148,7 +148,7 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
         if (!opts.wishlist) { await i.reply({ content: 'ยังไม่ได้ต่อปุ่มนี้', ...ephemeral }); return; }
         await i.deferReply(ephemeral);
         const state = await loadState(opts.statePath);
-        await i.editReply({ embeds: [await opts.wishlist(state.owners ?? {})] });
+        await i.editReply({ embeds: [await opts.wishlist(state.owners ?? {})], components: [shareRow()] });
         return;
       }
       case BUTTON.share: {

@@ -83,6 +83,8 @@ export const NOTIFY_BUTTONS = [
   { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
 ];
 export const buttonRows = () => rowsOf(NOTIFY_BUTTONS);
+/** แถวปุ่มเดี่ยว 📤 สำหรับคำตอบเห็นคนเดียว (ตาราง / เลขในฝัน / เลขที่เฝ้าอยู่ / สถานะ) */
+export const shareRow = () => ({ type: 1 as const, components: [NOTIFY_BUTTONS.find((b) => b.custom_id === BUTTON.share)!] });
 /** @deprecated ใช้ buttonRows() — คงไว้ให้เทสเก่า */
 export const buttonRow = () => ({ type: 1, components: NOTIFY_BUTTONS });
 
