@@ -10,7 +10,7 @@ CLI (Node 22 + TS) โหลด PDF ตารางเปิดจองเล�
 
 ## ตอนนี้อยู่ตรงไหน
 
-**v0.3**: landing panel 🏠 (สถานะวันนี้ + wishlist + bot บนแผง · แถวทำ 4 ปุ่ม / แถวดู 5 ปุ่ม · sticky + /panel) · การ์ดแจ้งเตือนเหลือ 📤 แชร์ + 🌐 · ฟอร์มกรอกเลข 3 ช่อง (เพิ่ม/ไม่อยากได้/ลบ) · ทุกปุ่มทดสอบกับ Discord จริงแล้ว **ทดสอบกับ Discord จริงแล้ว ปุ่มทำงานครบ** (bot = DLT Plate Watcher#7297 ช่อง #dlt-plate-watcher) · กำลังออกแบบการ์ดใหม่ที่ `design/embed-preview.html` (เปิดด้วย `python3 -m http.server 4173 --directory design`) ผู้ใช้จะปรับดีไซน์เองแล้วให้เอาไปใส่ `notify/discord.ts` · v0.1 ใช้งานได้จริงแล้ว ทดสอบกับ PDF จริงสัปดาห์ 14–18 ก.ย. 2569 อ่านได้ครบ 15 แถว · 26 เทสผ่าน · typecheck ผ่าน
+**v0.3**: landing panel 🏠 (สถานะวันนี้ + wishlist + bot บนแผง · แถวทำ 4 ปุ่ม / แถวดู 5 ปุ่ม · sticky + /panel) · การ์ดแจ้งเตือนเหลือ 📤 แชร์ + 🌐 · ฟอร์มกรอกเลข 3 ช่อง (เพิ่ม/ไม่อยากได้/ลบ) · ทุกปุ่มทดสอบกับ Discord จริงแล้ว · 🔮 เลขศาสตร์จาก `numerology.json` (ผู้ใช้ให้มา 3 สาย ค่าเริ่มต้นที่เหลือเป็นความเชื่อทั่วไป — ถ้าผู้ใช้มีตำราให้ใช้ของเขาแทน) **ทดสอบกับ Discord จริงแล้ว ปุ่มทำงานครบ** (bot = DLT Plate Watcher#7297 ช่อง #dlt-plate-watcher) · กำลังออกแบบการ์ดใหม่ที่ `design/embed-preview.html` (เปิดด้วย `python3 -m http.server 4173 --directory design`) ผู้ใช้จะปรับดีไซน์เองแล้วให้เอาไปใส่ `notify/discord.ts` · v0.1 ใช้งานได้จริงแล้ว ทดสอบกับ PDF จริงสัปดาห์ 14–18 ก.ย. 2569 อ่านได้ครบ 15 แถว · 26 เทสผ่าน · typecheck ผ่าน
 ส่ง Discord จริงสำเร็จ · repo public ที่ github.com/VoramethP/dlt-plate-watcher (push แล้ว) · มี `drawio/` 8 หน้า + PNG · ยังไม่ได้: ยืนยันว่า file id คงที่ข้ามสัปดาห์
 
 ## กฎเหล็ก

@@ -105,6 +105,7 @@ src/cli.ts              จุดเข้า 4 คำสั่ง: schedule · 
 src/core.ts             loadSchedule → planNotifications → sendFresh → saveState
 src/config.ts           Zod schema ของ watch.config.json
 src/match.ts            wishlist × ช่วงเลข → Match[] พร้อมเหตุผล
+src/numerology.ts       เลขศาสตร์จาก numerology.json (ผลรวมทั้งป้าย + คู่เลข → สาย) · ค่าเริ่มต้น = ความเชื่อทั่วไป ไม่ใช่ข้อเท็จจริง
 src/state.ts            .state/notified.json — key ที่เคยแจ้งแล้ว + เวอร์ชันตารางล่าสุด
 src/thai-date.ts        พ.ศ./เดือนไทย ↔ ISO · todayBangkok · minutesOfDayBangkok
 src/schedule/fetch.ts   normalizeDriveFileId · fetchSchedulePdf (คืน bytes + Last-Modified)

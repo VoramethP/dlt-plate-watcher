@@ -7,6 +7,7 @@ import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
 import { loadState, saveState, type State } from './state.js';
 import { daysBetween, todayBangkok } from './thai-date.js';
+import { loadNumerology, type Numerology } from './numerology.js';
 import { createHash } from 'node:crypto';
 
 export interface Env {
@@ -39,7 +40,7 @@ export function isStale(schedule: Schedule, today: string): boolean {
 }
 
 /** สิ่งที่ควรแจ้งวันนี้ โดยยังไม่ตัดของที่เคยแจ้งไปแล้ว */
-export function planNotifications(schedule: Schedule, config: Config, state: State, today: string) {
+export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, numerology?: Numerology) {
   const out: Array<{ key: string; embed: Embed }> = [];
   const stale = isStale(schedule, today);
   const mine = schedule.entries.filter((e) => e.vehicleType === config.vehicleType);
@@ -53,7 +54,7 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
     }
     for (const m of matchSchedule(schedule.entries, config)) {
       if (daysBetween(today, m.entry.openDate) < 0) continue; // ผ่านไปแล้ว ไม่ต้องแจ้ง
-      out.push({ key: matchKey(m, config.wishlist), embed: matchEmbed(m) });
+      out.push({ key: matchKey(m, config.wishlist), embed: matchEmbed(m, numerology) });
     }
     for (const e of mine) {
       const untilOpen = daysBetween(today, e.openDate);
@@ -96,7 +97,7 @@ export async function runCheck(config: Config, env: Env) {
   const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
   const state = await loadState(env.statePath);
 
-  const planned = planNotifications(schedule, config, state, today);
+  const planned = planNotifications(schedule, config, state, today, await loadNumerology());
   const sent = await sendFresh(planned, state, env);
   log(`ตารางเวอร์ชัน ${schedule.version}: ${schedule.entries.length} แถว · ควรแจ้ง ${planned.length} · ส่งใหม่ ${sent.length}`);
 
@@ -126,7 +127,8 @@ export async function runOpeningPing(config: Config, env: Env) {
 /** ส่ง match embed ของรอบนี้ทั้งหมดทันที ไม่อ่าน/ไม่เขียน state — เอาไว้ดูหน้าตาข้อความหลังแก้ดีไซน์ */
 export async function runPreview(config: Config, env: Env) {
   const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
-  const embeds = matchSchedule(schedule.entries, config).map(matchEmbed);
+  const numerology = await loadNumerology();
+  const embeds = matchSchedule(schedule.entries, config).map((m) => matchEmbed(m, numerology));
   if (!embeds.length) return { sent: 0 };
   if (!env.notifier) {
     (env.log ?? console.log)(JSON.stringify(embeds, null, 2));

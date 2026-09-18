@@ -6,6 +6,7 @@ import { createBotNotifier, type BotNotifier } from './notify/bot.js';
 import { COMMAND } from './notify/actions.js';
 import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed, wishlistEmbed } from './notify/discord.js';
 import { todayBangkok as todayTH } from './thai-date.js';
+import { loadNumerology, meaningLine } from './numerology.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
@@ -79,11 +80,12 @@ async function connectNotifier(): Promise<Notifier | undefined> {
   if (token && channelId) {
     return createBotNotifier({
       token, channelId, configPath: values.config, statePath: env.statePath, stickyPanel: cmd === 'watch',
+      meaning: async (prefix, n) => meaningLine(prefix, n, await loadNumerology()),
       myEntries: async () => { const c = await getConfig(); return (await loadSchedule(c.scheduleFileId)).entries.filter((e) => e.vehicleType === c.vehicleType); },
       wishlist: async (owners) => {
         const c = await getConfig();
         const entries = (await loadSchedule(c.scheduleFileId).catch(() => ({ entries: [] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
-        return wishlistEmbed(c, owners, entries, todayTH());
+        return wishlistEmbed(c, owners, entries, todayTH(), await loadNumerology());
       },
       panel: async () => {
         const c = await getConfig();
@@ -104,7 +106,8 @@ async function connectNotifier(): Promise<Notifier | undefined> {
         [COMMAND.match]: async () => {
           const c = await getConfig();
           const matches = matchSchedule((await loadSchedule(c.scheduleFileId)).entries, c);
-          return matches.length ? { embeds: matches.map(matchEmbed) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 เพิ่มเลขได้จากข้อความแจ้งเตือน';
+          const numerology = await loadNumerology();
+          return matches.length ? { embeds: matches.map((m) => matchEmbed(m, numerology)) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 บนแผงเพื่อเพิ่มเลข';
         },
         [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); lastCheckAt = new Date(); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
         [COMMAND.status]: async () => {

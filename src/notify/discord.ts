@@ -6,6 +6,7 @@ import { VEHICLE_LABEL } from '../schedule/types.js';
 import { daysBetween, formatThaiDate, formatThaiDateShort } from '../thai-date.js';
 import { matchSchedule } from '../match.js';
 import type { Config } from '../config.js';
+import { EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
 
 export interface Embed {
   title: string;
@@ -70,15 +71,19 @@ function numberLines(_prefix: string, numbers: number[], maxChars = 1000): strin
   return rows.join('\n');
 }
 
-export function matchEmbed(m: Match): Embed {
+export function matchEmbed(m: Match, numerology: Numerology = EMPTY_NUMEROLOGY): Embed {
   const e = m.entry;
   const groups = groupByReason(m);
+  // 🔮 ความหมายตามตารางของผู้ใช้ — จัดกลุ่มตามสาย เลขหนึ่งอาจอยู่หลายสาย · ไม่มีตาราง/ไม่เข้าสาย = ไม่แสดง
+  const meanings = groupNumbersByMeaning(e.prefix, m.numbers, numerology)
+    .map((g) => `${g.group.emoji} **${g.group.name}**\n${numberLines(e.prefix, g.numbers, 300)}`);
   return {
     title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${formatThaiDate(e.openDate)}`,
     description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
     color: COLOR.match,
     fields: [
       ...groups.map((g) => ({ name: `${g.reason} (${g.numbers.length})`, value: numberLines(e.prefix, g.numbers) })),
+      ...(meanings.length ? [{ name: '🔮 ความหมาย (ตาม numerology.json)', value: meanings.join('\n').slice(0, 1024) }] : []),
       { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true },
       { name: 'ต้องจดทะเบียนภายใน', value: formatThaiDate(e.registerBy, false), inline: true },
       ...(e.note ? [{ name: 'หมายเหตุจากขนส่ง', value: e.note }] : []),
@@ -122,7 +127,7 @@ export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config
 }
 
 /** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */
-export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string): Embed {
+export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY): Embed {
   const w = config.wishlist;
   const statusOf = (n: number) => {
     const slot = entries.find((e) => n >= e.from && n <= e.to);
@@ -130,7 +135,8 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
     const d = daysBetween(today, slot.openDate);
     return d < 0 ? `⏪ เปิดไปแล้ว ${formatThaiDateShort(slot.openDate)}` : d === 0 ? `🔥 เปิด**วันนี้** ${slot.prefix}` : `⏳ ${formatThaiDateShort(slot.openDate)} ${slot.prefix} (อีก ${d} วัน)`;
   };
-  const numberLines = w.numbers.map((n) => `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}`);
+  const prefixOf = (n: number) => entries.find((e) => n >= e.from && n <= e.to)?.prefix ?? '';
+  const numberLines = w.numbers.map((n) => { const mean = meaningLine(prefixOf(n), n, numerology); return `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}${mean ? `\n   ↳ ${mean}` : ''}`; });
   const fields: Embed['fields'] = [
     { name: `เลขที่ระบุไว้ (${w.numbers.length})`, value: numberLines.length ? numberLines.slice(0, 30).join('\n') + (numberLines.length > 30 ? `\n…และอีก ${numberLines.length - 30} เลข` : '') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
   ];

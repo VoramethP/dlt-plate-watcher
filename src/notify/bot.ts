@@ -24,6 +24,8 @@ export interface BotOptions {
   stickyPanel?: boolean;
   /** embed 📋 เลขที่เฝ้าอยู่ (รับ owners จาก state) */
   wishlist?: (owners: Record<string, string>) => Promise<Embed>;
+  /** ความหมายเลขศาสตร์ของเลข (หมวด, เลข) → บรรทัดสั้น ๆ หรือ '' */
+  meaning?: (prefix: string, n: number) => Promise<string>;
   /** แถวตารางของรถประเภทผู้ใช้ — ไว้บอกว่าเลขที่กรอกจะเปิดวันไหน · ไม่มีก็ข้าม */
   myEntries?: () => Promise<ScheduleEntry[]>;
 }
@@ -184,7 +186,9 @@ async function handleInteraction(i: Interaction, opts: BotOptions, client: Clien
     const ownersBefore = await updateOwners(opts.statePath, user, change.added, [...change.removed, ...change.excluded]);
     const entries = opts.myEntries ? await opts.myEntries().catch(() => []) : [];
     const rules = await readPatternRules(opts.configPath).catch(() => ({ patterns: [], digitSums: [] }));
-    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...exclude.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok(), rules)));
+    const meanings: Record<number, string> = {};
+    if (opts.meaning) for (const n of change.added) { const slot = entries.find((e) => n >= e.from && n <= e.to); meanings[n] = await opts.meaning(slot?.prefix ?? '', n).catch(() => ''); }
+    await i.editReply(clampReply(wishlistChangeText(change, [...add.invalid, ...exclude.invalid, ...remove.invalid], ownersBefore, user, entries, todayBangkok(), rules, meanings)));
   }
 }
 

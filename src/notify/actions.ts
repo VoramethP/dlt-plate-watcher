@@ -184,14 +184,15 @@ export function describeNumber(n: number, entries: ScheduleEntry[], today: strin
 }
 
 /** ข้อความสรุปผลของ modal — บรรทัดละเลข */
-export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string, rules = { patterns: [] as Array<{ name: string; regex: string }>, digitSums: [] as number[] }): string {
+export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string, rules = { patterns: [] as Array<{ name: string; regex: string }>, digitSums: [] as number[] }, meanings: Record<number, string> = {}): string {
   const lines: string[] = [];
   for (const n of c.added) {
     const other = owners[n] && owners[n] !== user ? ` · 👤 ${owners[n]} เล็งไว้ก่อนแล้ว` : '';
     const covered = coveredBy(n, rules);
     // เตือนแต่ยังเพิ่มให้ — ระบุตรง ๆ มีประโยชน์ตอนลบ pattern ทีหลัง
     const dup = covered.length ? `\n   ↳ 💡 เลขนี้ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "${covered.join('", "')}" ไม่ใส่ก็แจ้งเตือนอยู่ดี` : '';
-    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}`);
+    const mean = meanings[n] ? `\n   ↳ 🔮 ${meanings[n]}` : '';
+    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}${mean}`);
   }
   for (const n of c.already) lines.push(`ℹ️ **${n}** อยู่ใน wishlist อยู่แล้ว${owners[n] && owners[n] !== user ? ` (👤 ${owners[n]})` : ''}`);
   for (const n of c.unexcluded) lines.push(`♻️ **${n}** เอาออกจากรายการไม่อยากได้แล้ว (กลับมาเฝ้า)`);
