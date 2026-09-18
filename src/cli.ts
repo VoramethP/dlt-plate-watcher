@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
 import { loadConfig } from './config.js';
-import { loadSchedule, runCheck, runOpeningPing, runPreview } from './core.js';
+import { loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
+import { createBotNotifier } from './notify/bot.js';
+import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
 import { VEHICLE_LABEL } from './schedule/types.js';
@@ -23,7 +25,9 @@ const HELP = `dlt-plate-watcher — เฝ้าตารางเปิดจ�
   --dry-run           ไม่ส่ง Discord และไม่บันทึก state
   -h, --help
 
-ต้องตั้ง env DISCORD_WEBHOOK_URL (ดู .env.example)`;
+ปลายทาง Discord (ดู .env.example):
+  DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID   โหมด bot — มีปุ่มใต้ข้อความ (ปุ่มตอบสนองตอน watch รันอยู่)
+  DISCORD_WEBHOOK_URL                      โหมด webhook — ไม่มีปุ่ม`;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -39,10 +43,18 @@ const { values, positionals } = parseArgs({
 const cmd = positionals[0];
 if (values.help || !cmd) { console.log(HELP); process.exit(0); }
 
-const env = {
-  webhookUrl: values['dry-run'] ? undefined : process.env.DISCORD_WEBHOOK_URL,
+const env: Env = {
   statePath: values['dry-run'] ? `/tmp/dlt-plate-watcher-dry-${process.pid}.json` : values.state,
 };
+
+/** เลือกปลายทาง: dry-run → ไม่ส่ง · มี bot token → bot (มีปุ่ม) · ไม่งั้น webhook */
+async function connectNotifier(): Promise<Notifier | undefined> {
+  if (values['dry-run']) return undefined;
+  const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channelId, DISCORD_WEBHOOK_URL: webhook } = process.env;
+  if (token && channelId) return createBotNotifier({ token, channelId, configPath: values.config, statePath: env.statePath });
+  if (webhook) return webhookNotifier(webhook);
+  return undefined;
+}
 
 async function getConfig() {
   const config = await loadConfig(values.config);
@@ -83,17 +95,22 @@ async function main() {
       return;
     }
     case 'preview': {
+      env.notifier = await connectNotifier();
       const r = await runPreview(await getConfig(), env);
       console.log(`ส่ง preview ${r.sent} embed`);
+      await env.notifier?.close?.();
       return;
     }
     case 'check': {
+      env.notifier = await connectNotifier();
       const r = await runCheck(await getConfig(), env);
       console.log(`ส่งแจ้งเตือน ${r.sent.length} รายการ`);
+      await env.notifier?.close?.();
       return;
     }
     case 'watch': {
-      const config = await getConfig();
+      await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
+      env.notifier = await connectNotifier();
       let checkedDay = '';
       let pingedDay = '';
       console.log('เริ่มเฝ้า · check ทุกวัน 08:00 · ปิง 09:50 เฉพาะวันที่มีเลขใน wishlist เปิด (เวลาไทย) · Ctrl+C เพื่อหยุด');
@@ -101,6 +118,8 @@ async function main() {
         const day = todayBangkok();
         const minutes = minutesOfDayBangkok();
         try {
+          // โหลด config ใหม่ทุกรอบ เพราะปุ่ม "กรอกเลข" แก้ไฟล์ได้ระหว่างรัน
+          const config = await getConfig();
           if (minutes >= 8 * 60 && checkedDay !== day) {
             await runCheck(config, env);
             checkedDay = day;

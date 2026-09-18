@@ -60,6 +60,23 @@ npm run match           # ดูว่าเลขในฝันจะเปิ
 npm run check           # ส่งแจ้งเตือนรายการใหม่เข้า Discord
 ```
 
+## โหมด bot — มีปุ่มใต้ข้อความ
+
+ถ้าอยากได้ปุ่ม 4 ปุ่มใต้ข้อความ (กรอกเลขที่อยากจอง · ดูประวัติแชต · ลบประวัติแชตเก่า · เข้าสู่เว็บไซต์) ต้องใช้ bot แทน webhook
+เพราะ Discord ไม่ให้ webhook ธรรมดาส่งปุ่ม ([ADR-0004](docs/adr/0004-discord-bot-for-buttons.md))
+
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application** → แท็บ **Bot** → **Reset Token** → คัดลอกใส่ `DISCORD_BOT_TOKEN` (ไม่ต้องเปิด Privileged Intents ใด ๆ)
+2. แท็บ **OAuth2 → URL Generator** → scope `bot` → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** → เปิดลิงก์ที่ได้เพื่อเชิญ bot เข้า server
+3. ใน Discord เปิด **User Settings → Advanced → Developer Mode** แล้วคลิกขวาที่ช่อง → **Copy Channel ID** ใส่ `DISCORD_CHANNEL_ID`
+4. `npm run watch` — bot จะออนไลน์และตอบปุ่มได้ (`check`/`preview` ก็ส่งผ่าน bot ได้ แต่ปุ่มจะตอบสนองเฉพาะตอน watch รันอยู่)
+
+| ปุ่ม | ทำอะไร |
+|---|---|
+| 🔢 กรอกเลขที่อยากจอง | เปิดช่องกรอกเลข 1–9999 แล้วเพิ่มลง wishlist ให้เฝ้า **ไม่ได้จองแทน** |
+| 📜 ดูประวัติแชต | แสดงว่าเคยแจ้งอะไรไปบ้าง (เห็นคนเดียว) |
+| 🧹 ลบประวัติแชตเก่า | ลบข้อความเก่าของ bot ในช่องนี้ ไม่แตะข้อความของคนอื่น |
+| 🌐 เข้าสู่เว็บไซต์ | ลิงก์ไปหน้าจองของขนส่ง |
+
 ## วิธีรันให้เตือนเอง
 
 **แบบง่ายสุด: รันค้างไว้บนเครื่องที่เปิดตลอด**
@@ -123,7 +140,7 @@ watch               รันค้างไว้: check 08:00 และปิ�
 
 ```
 src/
-  cli.ts              จุดเข้า · แปลง argument · คำสั่ง 4 ตัว
+  cli.ts              จุดเข้า · แปลง argument · เลือกปลายทาง bot/webhook
   core.ts             ขั้นตอนหลัก: โหลดตาราง → วางแผนแจ้ง → ส่งเฉพาะที่ใหม่ → บันทึก state
   config.ts           schema ของ watch.config.json (Zod)
   match.ts            จับ wishlist กับช่วงเลขที่เปิด
@@ -131,13 +148,15 @@ src/
   thai-date.ts        พ.ศ./ชื่อเดือนไทย ↔ ISO · เวลาไทย
   schedule/fetch.ts   โหลด PDF จาก Drive (+ Last-Modified เป็นเวอร์ชันตาราง)
   schedule/parse.ts   PDF → แถวตาราง (จัดกลุ่ม text ตามพิกัด y แล้ว regex)
-  notify/discord.ts   ประกอบ embed และยิง webhook
+  notify/discord.ts   ประกอบ embed · Notifier interface · webhook
+  notify/bot.ts       โหมด bot (discord.js) ส่งข้อความพร้อมปุ่ม + รับการกด
+  notify/actions.ts   ตรรกะของปุ่ม (แก้ wishlist, จัดรูปประวัติ) แบบ pure
 tests/                Vitest · มี PDF จริงของขนส่งเป็น fixture
 docs/adr/             เหตุผลของการตัดสินใจสำคัญ
 ```
 
 ```bash
-npm test              # 26 tests
+npm test              # 37 tests
 npm run typecheck
 ```
 

@@ -74,7 +74,7 @@ CLI ตัวเล็ก ๆ ที่โหลด PDF ตารางเปิ
 ## คำสั่งที่ใช้บ่อย
 
 ```bash
-npm test                          # vitest 26 เทส (มี PDF จริงเป็น fixture)
+npm test                          # vitest 37 เทส (มี PDF จริงเป็น fixture)
 npm run typecheck
 npm run schedule                  # พิมพ์ตารางสัปดาห์นี้จาก Drive จริง
 npm run match                     # เลขใน wishlist ที่จะเปิดรอบนี้ ไม่ส่ง Discord
@@ -91,6 +91,7 @@ npm run watch                     # รันค้างไว้
    ห้ามเขียนโค้ดที่ล็อกอิน ThaID, กรอกเลขบัตร, ยิงหน้า `?menu=resv_m`, หรือกดยืนยันจอง แม้ผู้ใช้ขอ
 2. **ไม่หลบ WAF / ไม่ปลอม User-Agent เป็น browser** — [ADR-0003](docs/adr/0003-manual-file-id-no-ua-spoofing.md)
    โปรแกรมแตะได้แค่ `drive.google.com` และ `discord.com` · ห้ามยิง `reserve.dlt.go.th` จากโค้ด
+   รวมถึงห้ามเพิ่มปุ่ม/คำสั่งใน bot ที่ทำสิ่งเหล่านี้
 3. **ห้ามถือข้อมูลส่วนบุคคล** — ไม่มี field สำหรับเลขบัตร ชื่อ เลขตัวถัง ใน config หรือ state
    (ผลจาก ADR-0001 ทำให้ repo เปิด public ได้)
 
@@ -108,9 +109,11 @@ src/thai-date.ts        พ.ศ./เดือนไทย ↔ ISO · todayBangko
 src/schedule/fetch.ts   normalizeDriveFileId · fetchSchedulePdf (คืน bytes + Last-Modified)
 src/schedule/parse.ts   pdf.js text items → บรรทัด (จัดกลุ่มตาม y) → regex ROW_RE → ScheduleEntry
 src/schedule/types.ts   VehicleType · ScheduleEntry · Schedule
-src/notify/discord.ts   embed builders + sendDiscord (webhook)
+src/notify/discord.ts   embed builders · Notifier interface · webhookNotifier
+src/notify/bot.ts       โหมด bot (discord.js) — ไฟล์เดียวที่แตะ discord.js · ปุ่ม 4 ปุ่ม (ADR-0004)
+src/notify/actions.ts   ตรรกะปุ่มแบบ pure: buttonRow · addNumberToConfig · formatHistory
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง
-docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id
+docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม
 drawio/                 dlt-plate-watcher.drawio (8 หน้า) + png/ export · หน้า 99 raw = พื้นที่ของผู้ใช้
 .github/workflows/      ci.yml (test) · daily-check.yml (cron 08:00 ไทย)
 ```
@@ -126,7 +129,7 @@ drawio/                 dlt-plate-watcher.drawio (8 หน้า) + png/ export 
 
 ## ความปลอดภัย
 
-- `.env` (webhook URL) และ `watch.config.json` (wishlist ส่วนตัว) อยู่ใน `.gitignore` · commit ได้เฉพาะ `*.example*`
+- `.env` (webhook URL / bot token / channel id) และ `watch.config.json` (wishlist ส่วนตัว) อยู่ใน `.gitignore` · commit ได้เฉพาะ `*.example*`
 - **ห้าม `git add -A` แบบไม่ดู** — ก่อน commit รัน `git diff --cached -- '*.example*'` · เทส `tests/repo-hygiene.test.ts` จับ webhook จริงในไฟล์ตัวอย่าง (เคยหลุดมาแล้ว 2026-09-18)
 - webhook URL คือ secret เต็มตัว — ใครมีก็โพสต์ในช่องได้ · ห้าม log · ห้ามใส่ใน error message
 - `.state/` ไม่มีข้อมูลส่วนบุคคล แต่ก็ไม่ commit (เป็นสถานะเฉพาะเครื่อง)

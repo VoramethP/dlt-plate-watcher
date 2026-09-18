@@ -1,7 +1,7 @@
 // งานหลักที่ CLI และ cron เรียกใช้ — แยกจาก cli.ts เพื่อให้เทสได้โดยไม่ต้อง spawn process
 import type { Config } from './config.js';
 import { matchSchedule, type Match } from './match.js';
-import { matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, sendDiscord, staleEmbed, type Embed } from './notify/discord.js';
+import { matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
 import { fetchSchedulePdf, type Fetcher } from './schedule/fetch.js';
 import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
@@ -10,7 +10,8 @@ import { daysBetween, todayBangkok } from './thai-date.js';
 import { createHash } from 'node:crypto';
 
 export interface Env {
-  webhookUrl?: string;
+  /** ไม่มี = โหมด dry-run พิมพ์ embed ออกจอแทน */
+  notifier?: Notifier;
   statePath: string;
   fetcher?: Fetcher;
   now?: Date;
@@ -71,16 +72,18 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
   return out;
 }
 
+/** Discord รับได้สูงสุด 10 embed ต่อข้อความ */
+async function sendInChunks(notifier: Notifier, embeds: Embed[]) {
+  for (let i = 0; i < embeds.length; i += 10) await notifier.send(embeds.slice(i, i + 10));
+}
+
 async function sendFresh(planned: Array<{ key: string; embed: Embed }>, state: State, env: Env) {
   const log = env.log ?? console.log;
   const fresh = planned.filter((p) => !state.notified.includes(p.key));
-  if (fresh.length && env.webhookUrl) {
-    // Discord รับได้สูงสุด 10 embed ต่อข้อความ
-    for (let i = 0; i < fresh.length; i += 10) {
-      await sendDiscord(env.webhookUrl, { embeds: fresh.slice(i, i + 10).map((p) => p.embed) }, env.fetcher ?? fetch);
-    }
+  if (fresh.length && env.notifier) {
+    await sendInChunks(env.notifier, fresh.map((p) => p.embed));
   } else if (fresh.length) {
-    log('ไม่ได้ตั้ง DISCORD_WEBHOOK_URL — พิมพ์แทนการส่ง');
+    log('ไม่มีปลายทาง Discord (dry-run หรือยังไม่ตั้ง .env) — พิมพ์แทนการส่ง');
     for (const p of fresh) log(JSON.stringify(p.embed, null, 2));
   }
   return fresh;
@@ -125,10 +128,10 @@ export async function runPreview(config: Config, env: Env) {
   const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
   const embeds = matchSchedule(schedule.entries, config).map(matchEmbed);
   if (!embeds.length) return { sent: 0 };
-  if (!env.webhookUrl) {
+  if (!env.notifier) {
     (env.log ?? console.log)(JSON.stringify(embeds, null, 2));
     return { sent: 0 };
   }
-  for (let i = 0; i < embeds.length; i += 10) await sendDiscord(env.webhookUrl, { embeds: embeds.slice(i, i + 10) }, env.fetcher ?? fetch);
+  await sendInChunks(env.notifier, embeds);
   return { sent: embeds.length };
 }

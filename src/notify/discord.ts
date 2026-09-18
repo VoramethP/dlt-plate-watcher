@@ -17,6 +17,16 @@ export interface Embed {
 const COLOR = { info: 0x3b82f6, match: 0x22c55e, warn: 0xf59e0b, closed: 0x6b7280 } as const;
 const FOOTER = 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID';
 
+/** ปลายทางการแจ้ง — webhook หรือ bot (ดู bot.ts) · core.ts ไม่รู้ว่าเป็นแบบไหน */
+export interface Notifier {
+  send(embeds: Embed[]): Promise<void>;
+  close?(): Promise<void>;
+}
+
+export function webhookNotifier(webhookUrl: string, fetcher: Fetcher = fetch): Notifier {
+  return { send: (embeds) => sendDiscord(webhookUrl, { embeds }, fetcher) };
+}
+
 export async function sendDiscord(webhookUrl: string, payload: { content?: string; embeds?: Embed[] }, fetcher: Fetcher = fetch) {
   const res = await fetcher(webhookUrl, {
     method: 'POST',

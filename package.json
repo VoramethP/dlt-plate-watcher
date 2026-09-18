@@ -21,6 +21,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "discord.js": "^14.27.0",
     "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },
