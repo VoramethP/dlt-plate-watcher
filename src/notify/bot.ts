@@ -1,7 +1,7 @@
 // โหมด bot (discord.js gateway) — จำเป็นเมื่ออยากมีปุ่มใต้ข้อความ (ADR-0004)
 // ไฟล์นี้เป็นที่เดียวที่แตะ discord.js · ตรรกะของปุ่มอยู่ใน actions.ts
 import {
-  ActionRowBuilder, Client, Events, GatewayIntentBits, MessageFlags, ModalBuilder,
+  ActionRowBuilder, Client, Events, GatewayIntentBits, MessageFlags, MessageType, ModalBuilder,
   TextInputBuilder, TextInputStyle, type Interaction, type Message, type SendableChannels,
 } from 'discord.js';
 import { loadState } from '../state.js';
@@ -16,12 +16,16 @@ export interface BotOptions {
   log?: (msg: string) => void;
   /** ปุ่มลัดคำสั่ง — cli.ts ใส่ให้ เพราะต้องใช้ config/schedule ที่ bot ไม่รู้จัก · คืนข้อความตอบ (ephemeral) */
   commands?: Partial<Record<CommandId, () => Promise<string>>>;
+  /** สร้าง embed ของแผงควบคุม (bot เรียกเองตอนต้องโพสต์ใหม่ เช่น หลังแจ้งเตือน หรือ /panel) */
+  panel?: () => Promise<Embed>;
 }
+
+export const PANEL_COMMAND = { name: 'panel', description: 'เรียกแผงควบคุม dlt-plate-watcher มาไว้ล่างสุด' };
 
 export interface BotNotifier extends Notifier {
   client: Client;
-  /** โพสต์แผงควบคุมพร้อมปุ่มลัดคำสั่ง */
-  sendPanel(embed: Embed): Promise<void>;
+  /** โพสต์แผงควบคุมไว้ล่างสุด (ลบอันเก่า + ปักหมุดอันใหม่) */
+  sendPanel(): Promise<void>;
 }
 
 export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> {
@@ -37,24 +41,58 @@ export async function createBotNotifier(opts: BotOptions): Promise<BotNotifier> 
   const target: SendableChannels = channel;
   log(`bot online เป็น ${client.user?.tag} · ช่อง #${'name' in channel ? channel.name : opts.channelId}`);
 
-  client.on(Events.InteractionCreate, (i) => handleInteraction(i, opts, client).catch((err) => log(`interaction พลาด: ${err instanceof Error ? err.message : err}`)));
+  // แผงควบคุม: จำ id ไว้เพื่อลบอันเก่าเวลาย้ายมาล่างสุด
+  let panelId: string | null = null;
+  const sendPanel = async () => {
+    if (!opts.panel) return;
+    const embed = await opts.panel();
+    if (panelId) await target.messages.delete(panelId).catch(() => undefined);
+    const msg = await target.send({ embeds: [embed], components: [commandRow()] });
+    panelId = msg.id;
+    await pinQuietly(msg, log);
+  };
+
+  // /panel เป็น guild command → มีผลทันที (global ใช้เวลาเป็นชั่วโมง) · ต้องเชิญ bot ด้วย scope applications.commands
+  if ('guild' in channel && channel.guild && opts.panel) {
+    await channel.guild.commands.create(PANEL_COMMAND).catch((err) =>
+      log(`ลงทะเบียน /panel ไม่ได้ (${err instanceof Error ? err.message : err}) — เชิญ bot ใหม่ด้วย scope bot + applications.commands ปุ่มยังใช้ได้ปกติ`));
+  }
+
+  client.on(Events.InteractionCreate, (i) => handleInteraction(i, opts, client, sendPanel).catch((err) => log(`interaction พลาด: ${err instanceof Error ? err.message : err}`)));
 
   return {
     client,
     async send(embeds: Embed[]) {
       await target.send({ embeds, components: [buttonRow()] });
+      await sendPanel(); // แผงอยู่ล่างสุดเสมอ จะได้กดถึงโดยไม่ต้องเลื่อนหา
     },
-    async sendPanel(embed: Embed) {
-      await target.send({ embeds: [embed], components: [commandRow()] });
-    },
+    sendPanel,
     async close() {
       await client.destroy();
     },
   };
 }
 
-async function handleInteraction(i: Interaction, opts: BotOptions, client: Client) {
+/** ปักหมุดแล้วลบข้อความระบบ "ปักหมุดข้อความ" ทิ้ง จะได้ไม่รก · ต้องมีสิทธิ์ Manage Messages ไม่มีก็ข้าม */
+async function pinQuietly(msg: Message, log: (m: string) => void) {
+  try {
+    await msg.pin();
+    const recent = await msg.channel.messages.fetch({ limit: 3 });
+    for (const m of recent.values()) if (m.type === MessageType.ChannelPinnedMessage) await m.delete().catch(() => undefined);
+  } catch (err) {
+    log(`ปักหมุดแผงไม่ได้: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
+async function handleInteraction(i: Interaction, opts: BotOptions, client: Client, sendPanel: () => Promise<void>) {
   const ephemeral = { flags: MessageFlags.Ephemeral } as const;
+
+  if (i.isChatInputCommand() && i.commandName === PANEL_COMMAND.name) {
+    await i.deferReply(ephemeral);
+    await sendPanel();
+    await i.editReply('🛠️ ย้ายแผงควบคุมมาไว้ล่างสุดแล้ว');
+    return;
+  }
 
   if (i.isButton() && i.customId.startsWith('cmd_')) {
     const run = opts.commands?.[i.customId as CommandId];

@@ -66,7 +66,7 @@ npm run check           # ส่งแจ้งเตือนรายการ
 เพราะ Discord ไม่ให้ webhook ธรรมดาส่งปุ่ม ([ADR-0004](docs/adr/0004-discord-bot-for-buttons.md))
 
 1. [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application** → แท็บ **Bot** → **Reset Token** → คัดลอกใส่ `DISCORD_BOT_TOKEN` (ไม่ต้องเปิด Privileged Intents ใด ๆ)
-2. แท็บ **OAuth2 → URL Generator** → scope `bot` → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** → เปิดลิงก์ที่ได้เพื่อเชิญ bot เข้า server
+2. แท็บ **OAuth2 → URL Generator** → scopes `bot` **และ** `applications.commands` (อันหลังทำให้พิมพ์ `/panel` ได้) → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** → เปิดลิงก์ที่ได้เพื่อเชิญ bot เข้า server
 3. ใน Discord เปิด **User Settings → Advanced → Developer Mode** แล้วคลิกขวาที่ช่อง → **Copy Channel ID** ใส่ `DISCORD_CHANNEL_ID`
 4. `npm run watch` — bot จะออนไลน์และตอบปุ่มได้ (`check`/`preview` ก็ส่งผ่าน bot ได้ แต่ปุ่มจะตอบสนองเฉพาะตอน watch รันอยู่)
 
@@ -76,6 +76,9 @@ npm run check           # ส่งแจ้งเตือนรายการ
 | 📜 ดูประวัติแชต | แสดงว่าเคยแจ้งอะไรไปบ้าง (เห็นคนเดียว) |
 | 🧹 ลบประวัติแชตเก่า | ลบข้อความเก่าของ bot ในช่องนี้ ไม่แตะข้อความของคนอื่น |
 | 🌐 เข้าสู่เว็บไซต์ | ลิงก์ไปหน้าจองของขนส่ง |
+
+**แผงควบคุม** เป็นอีกข้อความหนึ่งที่มีปุ่มลัดคำสั่ง 📅 ตารางสัปดาห์นี้ · 🎯 เลขในฝันรอบนี้ · 🔄 เช็คตอนนี้ · 🧭 สถานะ bot
+bot โพสต์ตอนเริ่ม `watch` ปักหมุดไว้ และย้ายมาล่างสุดทุกครั้งที่มีแจ้งเตือน · หาไม่เจอพิมพ์ `/panel` ได้ทุกเมื่อ
 
 ## วิธีรันให้เตือนเอง
 

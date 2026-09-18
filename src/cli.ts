@@ -78,6 +78,11 @@ async function connectNotifier(): Promise<Notifier | undefined> {
   if (token && channelId) {
     return createBotNotifier({
       token, channelId, configPath: values.config, statePath: env.statePath,
+      panel: async () => {
+        const c = await getConfig();
+        const s = await loadSchedule(c.scheduleFileId).catch(() => null);
+        return panelEmbed({ wishlistCount: c.wishlist.numbers.length, version: s?.version ?? 'โหลดไม่ได้' });
+      },
       commands: {
         [COMMAND.schedule]: async () => code(scheduleText(await loadSchedule((await getConfig()).scheduleFileId))),
         [COMMAND.match]: async () => { const c = await getConfig(); return code(matchText(await loadSchedule(c.scheduleFileId), c)); },
@@ -135,13 +140,10 @@ async function main() {
       return;
     }
     case 'watch': {
-      const startConfig = await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
+      await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
       env.notifier = await connectNotifier();
-      // โหมด bot: โพสต์แผงควบคุมพร้อมปุ่มลัดคำสั่งตอนเริ่ม (ใช้ปุ่ม 🧹 ลบของเก่าได้)
-      if (env.notifier && 'sendPanel' in env.notifier) {
-        const s = await loadSchedule(startConfig.scheduleFileId).catch(() => null);
-        await (env.notifier as BotNotifier).sendPanel(panelEmbed({ wishlistCount: startConfig.wishlist.numbers.length, version: s?.version ?? 'โหลดไม่ได้' }));
-      }
+      // โหมด bot: โพสต์แผงควบคุมตอนเริ่ม · หลังจากนั้นแผงจะย้ายมาล่างสุดเองทุกครั้งที่แจ้งเตือน หรือพิมพ์ /panel
+      if (env.notifier && 'sendPanel' in env.notifier) await (env.notifier as BotNotifier).sendPanel();
       let checkedDay = '';
       let pingedDay = '';
       console.log('เริ่มเฝ้า · check ทุกวัน 08:00 · ปิง 09:50 เฉพาะวันที่มีเลขใน wishlist เปิด (เวลาไทย) · Ctrl+C เพื่อหยุด');
