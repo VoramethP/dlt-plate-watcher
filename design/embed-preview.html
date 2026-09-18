@@ -34,7 +34,7 @@
   .author { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
   .author b { color: #fff; } .author .tag { background: var(--btn-primary); color: #fff; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
   .author .time { color: var(--muted); font-size: 12px; }
-  .embed { background: var(--embed); border-left: 4px solid var(--accent); border-radius: 4px; padding: 10px 16px 14px 12px; max-width: 560px; }
+  .embed { background: var(--embed); border-left: 4px solid var(--accent); border-radius: 4px; padding: 10px 16px 14px 12px; max-width: 600px; }
   .embed .title { font-weight: 600; color: #fff; font-size: 16px; margin: 4px 0 6px; }
   .embed .desc { white-space: pre-wrap; line-height: 1.45; margin-bottom: 8px; }
   .fields { display: grid; gap: 8px 12px; margin-top: 6px; }
@@ -47,10 +47,10 @@
   .chip:hover { border-color: var(--link); } .chip.star { color: #fde047; }
   .footer { color: var(--muted); font-size: 12px; margin-top: 10px; display: flex; gap: 6px; align-items: center; }
   .footer::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(135deg,#22c55e,#0ea5e9); display: inline-block; }
-  .buttons { display: grid; gap: 8px; margin-top: 8px; max-width: 560px; }
+  .buttons { display: grid; gap: 8px; margin-top: 8px; max-width: 760px; }
   .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
-  .btnrow.grid2 { display: grid; grid-template-columns: 1fr 1fr; }
-  .btnrow.grid2 .btn { justify-content: center; }
+  /* Discord จริง: ปุ่มกว้างตามข้อความ ยืดเต็มแถวไม่ได้ · จึงไม่ใช้ grid */
+  .btnrow.grid2 { display: flex; }
   .btn { border: 0; border-radius: 4px; padding: 8px 14px; color: #fff; font: inherit; font-weight: 500; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
   .btn.p { background: var(--btn-primary); } .btn.s { background: var(--btn-secondary); } .btn.d { background: var(--btn-danger); } .btn.l { background: var(--btn-link); }
   .btn:active { filter: brightness(.9); }
@@ -107,7 +107,7 @@
       <label class="opt"><input type="checkbox" id="optUrgency" checked> สีแถบซ้ายตามความเร่งด่วน (เขียว → เหลือง → แดง)</label>
       <div class="hint">Discord ให้แถบซ้ายเป็นสีเดียว ทำ gradient ไม่ได้ · แต่เปลี่ยนสีตามวันที่เหลือได้</div>
       <div style="margin-top:8px"><div class="hint">การจัดปุ่ม (Discord กำหนดความกว้างปุ่มเองตามข้อความ)</div>
-      <select id="btnLayout"><option value="2x2">2 แถว × 2 ปุ่ม (พอดีการ์ด)</option><option value="1x4">1 แถว × 4 ปุ่ม</option></select></div>
+      <select id="btnLayout"><option value="1x4">แถวเดียว (ค่าเริ่มต้น)</option><option value="2x2">แถวละ 2 ปุ่ม (ขอบจะไม่ตรงกัน เหมือน Discord จริง)</option></select></div>
       <div style="margin-top:8px"><div class="hint">วันนี้ (จำลอง) — ลองเลื่อนดูสีและนับถอยหลัง</div><input type="date" id="today" value="2026-09-15"></div>
       <div class="row2" style="margin-top:8px">
         <div><div class="hint">เลขต่อแถว</div><input type="number" id="perRow" min="3" max="10" value="5"></div>
@@ -144,7 +144,7 @@
       · ข้อความใช้ markdown พื้นฐาน: <b>ตัวหนา</b>, <code>โค้ด</code>, ลิงก์ · ไม่มีสีตัวอักษร ไม่มีตาราง ไม่มีชิปสี · "ชิป" ในนี้คือ inline code<br>
       · field value ยาวได้ 1024 ตัวอักษร · ทั้ง embed 6000 · ปุ่มสูงสุด 5 ปุ่มต่อแถว 5 แถว · ปุ่มลิงก์ต้องเป็นสีเทาเสมอ<br>
       · กดชิปเลขในนี้ = คัดลอกเลข (ใน Discord จริงกดคัดลอกไม่ได้ แต่กดค้าง/ลากได้)<br>
-      · <b>แถบซ้ายเป็นสีเดียว</b> gradient ทำไม่ได้ · ปุ่มกว้างตามข้อความ กำหนดความกว้างไม่ได้ แต่แยกได้สูงสุด 5 แถว<br>
+      · <b>แถบซ้ายเป็นสีเดียว</b> gradient ทำไม่ได้ · <b>ปุ่มกว้างตามข้อความ</b> ยืดเต็มแถวไม่ได้ (แยกแถวแล้วขอบไม่ตรงกัน) แถวได้สูงสุด 5 · desktop วาง 5 ปุ่มต่อแถวได้ มือถือ Discord ย่อให้เอง<br>
       · <b>ตัวแก้ file id อัตโนมัติทำไม่ได้</b> เพราะหน้าขนส่งอยู่หลัง WAF ที่ปฏิเสธทุก client ที่ไม่ใช่เบราว์เซอร์ (ADR-0003) — แต่หลักฐานบ่งว่าขนส่งอัปโหลดทับไฟล์เดิม จึงน่าจะไม่ต้องแก้เลย รอยืนยัน จ. 21 ก.ย.
     </div>
   </main>
