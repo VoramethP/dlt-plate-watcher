@@ -5,7 +5,8 @@ import { matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed,
 import { fetchSchedulePdf, type Fetcher } from './schedule/fetch.js';
 import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
-import { loadState, saveState, type State } from './state.js';
+import type { State } from './state.js';
+import { CRON_ACTOR, type Actor, type Store } from './store.js';
 import { daysBetween, todayBangkok } from './thai-date.js';
 import { loadNumerology, type Numerology } from './numerology.js';
 import { createHash } from 'node:crypto';
@@ -13,11 +14,16 @@ import { createHash } from 'node:crypto';
 export interface Env {
   /** ไม่มี = โหมด dry-run พิมพ์ embed ออกจอแทน */
   notifier?: Notifier;
-  statePath: string;
+  store: Store;
+  /** ใครสั่งรอบนี้ — cron หรือคนกด 🔄 (ลง events) */
+  actor?: Actor;
   fetcher?: Fetcher;
+  /** แทนที่การโหลดตารางทั้งก้อน (เทส/ปุ่มใช้) · ไม่มี = fetchSchedulePdf ด้วย fetcher */
+  schedule?: (fileId: string) => Promise<Schedule>;
   now?: Date;
   log?: (msg: string) => void;
 }
+const scheduleOf = (env: Env, fileId: string) => (env.schedule ?? ((id: string) => loadSchedule(id, env.fetcher)))(fileId);
 
 export async function loadSchedule(fileId: string, fetcher: Fetcher = fetch): Promise<Schedule> {
   const pdf = await fetchSchedulePdf(fileId, fetcher);
@@ -94,19 +100,23 @@ async function sendFresh(planned: Array<{ key: string; embed: Embed }>, state: S
 export async function runCheck(config: Config, env: Env) {
   const log = env.log ?? console.log;
   const today = todayBangkok(env.now);
-  const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
-  const state = await loadState(env.statePath);
+  const schedule = await scheduleOf(env, config.scheduleFileId);
+  const state = await env.store.loadState();
 
   const planned = planNotifications(schedule, config, state, today, await loadNumerology());
   const sent = await sendFresh(planned, state, env);
   log(`ตารางเวอร์ชัน ${schedule.version}: ${schedule.entries.length} แถว · ควรแจ้ง ${planned.length} · ส่งใหม่ ${sent.length}`);
 
-  await saveState(env.statePath, {
-    ...state,
-    lastScheduleVersion: schedule.version,
-    notified: [...state.notified, ...sent.map((p) => p.key)],
-  });
+  await env.store.appendNotified(sent.map((p) => p.key), schedule.version);
+  await env.store.setMeta('lastCheckAt', (env.now ?? new Date()).toISOString());
+  await recordSent(env, sent);
+  await env.store.logEvent({ kind: 'check', actor: env.actor ?? CRON_ACTOR, payload: { version: schedule.version, planned: planned.length, sent: sent.length } });
   return { schedule, planned, sent };
+}
+
+/** ลง events หนึ่งแถวต่อ key ที่แจ้ง — ปุ่ม 📜 อ่านจากตรงนี้ */
+async function recordSent(env: Env, sent: Array<{ key: string }>) {
+  for (const p of sent) await env.store.logEvent({ kind: 'notify', actor: env.actor ?? CRON_ACTOR, payload: { key: p.key } });
 }
 
 /**
@@ -115,18 +125,22 @@ export async function runCheck(config: Config, env: Env) {
  */
 export async function runOpeningPing(config: Config, env: Env) {
   const today = todayBangkok(env.now);
-  const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
-  const state = await loadState(env.statePath);
+  const schedule = await scheduleOf(env, config.scheduleFileId);
+  const state = await env.store.loadState();
   const todays = matchSchedule(schedule.entries, config).filter((m) => m.entry.openDate === today);
   const planned = todays.map((m) => ({ key: `t10:${today}:${m.entry.prefix}`, embed: openingSoonEmbed(m) }));
   const sent = await sendFresh(planned, state, env);
-  if (sent.length) await saveState(env.statePath, { ...state, notified: [...state.notified, ...sent.map((p) => p.key)] });
+  if (sent.length) {
+    await env.store.appendNotified(sent.map((p) => p.key));
+    await recordSent(env, sent);
+    await env.store.logEvent({ kind: 'ping', actor: CRON_ACTOR, payload: { sent: sent.length } });
+  }
   return { sent };
 }
 
 /** ส่ง match embed ของรอบนี้ทั้งหมดทันที ไม่อ่าน/ไม่เขียน state — เอาไว้ดูหน้าตาข้อความหลังแก้ดีไซน์ */
 export async function runPreview(config: Config, env: Env) {
-  const schedule = await loadSchedule(config.scheduleFileId, env.fetcher);
+  const schedule = await scheduleOf(env, config.scheduleFileId);
   const numerology = await loadNumerology();
   const embeds = matchSchedule(schedule.entries, config).map((m) => matchEmbed(m, numerology));
   if (!embeds.length) return { sent: 0 };

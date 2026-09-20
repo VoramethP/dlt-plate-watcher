@@ -1,9 +1,8 @@
-// ตรรกะของปุ่มใต้ข้อความ — pure ไม่แตะ discord.js เพื่อให้เทสได้
+// ตรรกะของปุ่ม — pure ไม่แตะ Discord API เพื่อให้เทสได้ · ฝั่งที่คุยกับ Discord อยู่ใน interactions.ts
 // ปุ่ม "กรอกเลขที่อยากจอง" แค่เพิ่มเลขลง wishlist ให้เฝ้า ไม่ได้จองแทน (ADR-0001)
-import { readFile, writeFile } from 'node:fs/promises';
 import { DLT_RESERVE_PAGE } from '../schedule/fetch.js';
-import { loadState, saveState, type State } from '../state.js';
 import type { ScheduleEntry } from '../schedule/types.js';
+import type { StoredEvent, WishlistRows } from '../store.js';
 import { daysBetween } from '../thai-date.js';
 import { formatThaiDate } from '../thai-date.js';
 
@@ -29,7 +28,7 @@ export const MODAL_TEXT = {
 export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100 } as const;
 
 /** ปุ่มลัดของคำสั่ง CLI — อยู่บน "แผงควบคุม" ที่ bot โพสต์ตอนเริ่ม watch */
-export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', status: 'cmd_status', guide: 'cmd_guide' } as const;
+export const COMMAND = { schedule: 'cmd_schedule', match: 'cmd_match', check: 'cmd_check', guide: 'cmd_guide' } as const;
 export type CommandId = (typeof COMMAND)[keyof typeof COMMAND];
 
 
@@ -100,13 +99,6 @@ export function parseNumbers(input: string): { valid: number[]; invalid: string[
   return { valid, invalid };
 }
 
-async function readConfigRaw(configPath: string) {
-  const raw = JSON.parse(await readFile(configPath, 'utf8'));
-  raw.wishlist ??= {}; raw.wishlist.numbers ??= []; raw.wishlist.exclude ??= [];
-  return raw as { wishlist: { numbers: number[]; exclude: number[] } };
-}
-const writeConfigRaw = (configPath: string, raw: unknown) => writeFile(configPath, JSON.stringify(raw, null, 2) + '\n');
-
 export interface WishlistChange {
   added: number[]; already: number[]; removed: number[]; notFound: number[]; total: number;
   /** รายการหลังแก้ (เรียงแล้ว) */
@@ -117,13 +109,12 @@ export interface WishlistChange {
 }
 
 /**
- * แก้ wishlist ครั้งเดียวจบ ลำดับ: ลบ (ออกจากทั้งสองรายการ) → ไม่อยากได้ (ย้ายออกจากอยากได้) → เพิ่ม (ย้ายออกจากไม่อยากได้)
- * ใส่เลขเดียวกันหลายช่อง = ช่องเพิ่มชนะ
+ * แก้ wishlist ครั้งเดียวจบ (pure — store เป็นคนเขียน) ลำดับ: ลบ (ออกจากทั้งสองรายการ) → ไม่อยากได้ (ย้ายออกจากอยากได้) → เพิ่ม (ย้ายออกจากไม่อยากได้)
+ * ใส่เลขเดียวกันหลายช่อง = ช่องเพิ่มชนะ · `changed` = false แปลว่าไม่ต้องเขียนอะไร
  */
-export async function updateWishlist(configPath: string, add: number[], remove: number[], exclude: number[] = []): Promise<WishlistChange> {
-  const raw = await readConfigRaw(configPath);
-  let numbers = [...raw.wishlist.numbers];
-  let ex = [...raw.wishlist.exclude];
+export function applyWishlistChange(current: WishlistRows, add: number[], remove: number[], exclude: number[] = []): WishlistChange & { changed: boolean } {
+  let numbers = [...current.numbers];
+  let ex = [...current.exclude];
   const removed = remove.filter((n) => numbers.includes(n) || ex.includes(n));
   const notFound = remove.filter((n) => !removed.includes(n));
   numbers = numbers.filter((n) => !removed.includes(n));
@@ -140,28 +131,9 @@ export async function updateWishlist(configPath: string, add: number[], remove: 
   ex = ex.filter((n) => !add.includes(n)).sort((a, b) => a - b);
   numbers = [...numbers, ...added].sort((a, b) => a - b);
 
-  const changed = added.length || removed.length || excluded.length || unexcluded.length ||
-    exclude.some((n) => raw.wishlist.numbers.includes(n));
-  if (changed) { raw.wishlist.numbers = numbers; raw.wishlist.exclude = ex; await writeConfigRaw(configPath, raw); }
-  return { added, already, removed, notFound, total: numbers.length, numbers, excluded, alreadyExcluded, unexcluded, exclude: ex };
-}
-
-/** จำว่าใครเพิ่ม/ลบเลขไหน (ไว้บอกว่า "มี @คนนี้ เล็งไว้แล้ว") */
-export async function updateOwners(statePath: string, user: string, added: number[], removed: number[]): Promise<Record<string, string>> {
-  const state = await loadState(statePath);
-  const owners = { ...(state.owners ?? {}) };
-  const before = { ...owners };
-  for (const n of removed) delete owners[n];
-  for (const n of added) owners[n] ??= user;
-  await saveState(statePath, { ...state, owners });
-  return before;
-}
-
-/** อ่าน pattern/digitSums จาก config ตรง ๆ (ไม่ผ่าน zod เพื่อไม่ผูก actions กับ config.ts) */
-export async function readPatternRules(configPath: string): Promise<{ patterns: Array<{ name: string; regex: string }>; digitSums: number[] }> {
-  const raw = JSON.parse(await readFile(configPath, 'utf8'));
-  const patterns = (raw.wishlist?.patterns ?? []).map((p: string | { name: string; regex: string }) => (typeof p === 'string' ? { name: p, regex: p } : p));
-  return { patterns, digitSums: raw.wishlist?.digitSums ?? [] };
+  const changed = Boolean(added.length || removed.length || excluded.length || unexcluded.length ||
+    exclude.some((n) => current.numbers.includes(n)));
+  return { added, already, removed, notFound, total: numbers.length, numbers, excluded, alreadyExcluded, unexcluded, exclude: ex, changed };
 }
 
 /** เลขนี้ถูกเฝ้าอยู่แล้วผ่าน pattern/ผลรวมไหม → คืนชื่อกฎที่ครอบ (ว่าง = ไม่ครอบ) */
@@ -223,9 +195,33 @@ export function describeKey(key: string): string {
   }
 }
 
-export function formatHistory(state: State, limit = 15): string {
-  if (!state.notified.length) return 'ยังไม่เคยแจ้งอะไรเลย';
-  const recent = state.notified.slice(-limit).reverse();
-  const more = state.notified.length > limit ? `\n…และก่อนหน้านี้อีก ${state.notified.length - limit} รายการ` : '';
-  return `**แจ้งไปแล้ว ${state.notified.length} รายการ (ล่าสุดก่อน)**\n${recent.map(describeKey).join('\n')}${more}`;
+const bkkStamp = (iso: string) => new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const numList = (v: unknown) => Array.isArray(v) && v.length ? v.join(', ') : '';
+
+/** เหตุการณ์หนึ่งแถวใน 📜 — คนอ่านต้องรู้ว่า "ใคร ทำอะไร กับเลขไหน" โดยไม่เห็น payload ดิบ */
+export function describeEvent(e: StoredEvent): string {
+  const who = e.actor && e.actor.id !== 'cron' ? `👤 ${e.actor.name} ` : '';
+  const p = e.payload ?? {};
+  switch (e.kind) {
+    case 'notify': return describeKey(String(p.key ?? ''));
+    case 'wishlist': {
+      const parts = [
+        numList(p.added) && `เพิ่ม ${numList(p.added)}`,
+        numList(p.excluded) && `🚫 ${numList(p.excluded)}`,
+        numList(p.removed) && `ลบ ${numList(p.removed)}`,
+      ].filter(Boolean);
+      return `🔢 ${who}${parts.join(' · ') || 'ไม่มีอะไรเปลี่ยน'}`;
+    }
+    case 'clear': return `🧹 ${who}ลบข้อความเก่า ${p.deleted ?? 0} ข้อความ`;
+    case 'ping': return `🚦 ปิงก่อนเปิดจอง ${p.sent ?? 0} รายการ`;
+    case 'check': return `🔄 ${who}เช็ค · ส่งใหม่ ${p.sent ?? 0}`;
+    case 'panel': return '🏠 โพสต์แผงใหม่';
+    default: return e.kind;
+  }
+}
+
+/** ข้อความของปุ่ม 📜 — events ล่าสุดก่อน (store กรองชนิดมาแล้ว) */
+export function formatHistory(events: StoredEvent[]): string {
+  if (!events.length) return 'ยังไม่มีประวัติ — ยังไม่เคยแจ้งเตือนหรือมีใครกดปุ่ม';
+  return `**ประวัติ ${events.length} รายการล่าสุด (ล่าสุดก่อน)**\n${events.map((e) => `\`${bkkStamp(e.at)}\` ${describeEvent(e)}`).join('\n')}\n-# ดูทั้งหมดได้ในตาราง events บน Supabase`;
 }

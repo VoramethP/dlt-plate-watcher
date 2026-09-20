@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { normalizeDriveFileId } from './schedule/fetch.js';
+import type { Store } from './store.js';
 
 const VehicleTypeSchema = z.enum(['car', 'van', 'pickup']);
 
@@ -36,6 +37,19 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+/** `label` ใช้ในข้อความ error เท่านั้น (ชื่อไฟล์ หรือชื่อ env) */
+export function parseConfig(raw: string, label: string): Config {
+  let json: unknown;
+  try { json = JSON.parse(raw); } catch { throw new Error(`${label} ไม่ใช่ JSON`); }
+  const parsed = ConfigSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new Error(`${label} ไม่ถูกต้อง:\n${z.prettifyError(parsed.error)}`);
+  }
+  // ตรวจ regex ตั้งแต่ตอนโหลด จะได้ไม่ไปพังกลางดึกตอน cron รัน
+  for (const p of parsed.data.wishlist.patterns) new RegExp(p.regex, 'u');
+  return parsed.data;
+}
+
 export async function loadConfig(path = 'watch.config.json'): Promise<Config> {
   let raw: string;
   try {
@@ -43,11 +57,16 @@ export async function loadConfig(path = 'watch.config.json'): Promise<Config> {
   } catch {
     throw new Error(`ไม่พบ ${path} — คัดลอกจาก watch.config.example.json แล้วแก้ให้เป็นของคุณ`);
   }
-  const parsed = ConfigSchema.safeParse(JSON.parse(raw));
-  if (!parsed.success) {
-    throw new Error(`${path} ไม่ถูกต้อง:\n${z.prettifyError(parsed.error)}`);
-  }
-  // ตรวจ regex ตั้งแต่ตอนโหลด จะได้ไม่ไปพังกลางดึกตอน cron รัน
-  for (const p of parsed.data.wishlist.patterns) new RegExp(p.regex, 'u');
-  return parsed.data;
+  return parseConfig(raw, path);
+}
+
+/**
+ * config ที่ใช้จริง = ฐาน (env WATCH_CONFIG_JSON บน Vercel หรือไฟล์บนเครื่อง) + wishlist.numbers/exclude จาก store
+ * ปุ่มแก้ผ่าน store เท่านั้น ส่วนใน env/ไฟล์จึงเป็นแค่ค่าเริ่มต้น · โหมดไฟล์ store อ่านไฟล์เดียวกันอยู่แล้ว ผลเท่ากัน
+ */
+export async function resolveConfig(opts: { configPath: string; store: Store; env?: NodeJS.ProcessEnv }): Promise<Config> {
+  const envJson = (opts.env ?? process.env).WATCH_CONFIG_JSON;
+  const base = envJson ? parseConfig(envJson, 'WATCH_CONFIG_JSON') : await loadConfig(opts.configPath);
+  const rows = await opts.store.loadWishlist();
+  return { ...base, wishlist: { ...base.wishlist, numbers: rows.numbers, exclude: rows.exclude } };
 }

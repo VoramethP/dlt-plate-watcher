@@ -1,9 +1,5 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { coveredBy, embedToText, readPatternRules, DISCORD_LIMITS, MODAL_TEXT, buttonRows, clampReply, panelRows, describeKey, describeNumber, formatHistory, parseNumbers, updateOwners, updateWishlist, wishlistChangeText } from '../src/notify/actions.js';
-import { loadState } from '../src/state.js';
+import { applyWishlistChange, coveredBy, embedToText, DISCORD_LIMITS, MODAL_TEXT, buttonRows, clampReply, panelRows, describeEvent, describeKey, describeNumber, formatHistory, parseNumbers, wishlistChangeText } from '../src/notify/actions.js';
 
 describe('ปุ่มใต้การ์ดแจ้งเตือน', () => {
   it('เหลือแค่ 📤 แชร์เลข กับ 🌐 เข้าสู่เว็บไซต์ (ที่เหลืออยู่บน landing panel)', () => {
@@ -66,13 +62,6 @@ describe('clampReply', () => {
   });
 });
 
-async function tmpConfig() {
-  const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
-  const path = join(dir, 'watch.config.json');
-  await writeFile(path, JSON.stringify({ scheduleFileId: 'x', vehicleType: 'car', wishlist: { numbers: [9999], patterns: [], digitSums: [] } }, null, 2));
-  return { path, dir };
-}
-
 describe('parseNumbers', () => {
   it('รับหลายตัวคั่นด้วย , เว้นวรรค ขึ้นบรรทัด และคัดตัวที่ไม่ใช่เลขทะเบียน', () => {
     expect(parseNumbers('5555, 6000 6464\n15;5555 12345 abc 0')).toEqual({ valid: [5555, 6000, 6464, 15], invalid: ['12345', 'abc', '0'] });
@@ -80,50 +69,32 @@ describe('parseNumbers', () => {
   });
 });
 
-describe('updateWishlist', () => {
-  it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', async () => {
-    const { path } = await tmpConfig();
-    const c = await updateWishlist(path, [5555, 9999, 15], []);
-    expect(c).toMatchObject({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999], exclude: [] });
-    expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([15, 5555, 9999]);
+describe('applyWishlistChange (pure — store เป็นคนเขียน)', () => {
+  const start = { numbers: [9999], exclude: [] };
+  it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', () => {
+    const c = applyWishlistChange(start, [5555, 9999, 15], []);
+    expect(c).toMatchObject({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999], exclude: [], changed: true });
   });
-  it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', async () => {
-    const { path } = await tmpConfig();
-    await updateWishlist(path, [15], []);
-    const c = await updateWishlist(path, [], [15, 42]);
-    expect(c).toMatchObject({ removed: [15], notFound: [42], total: 1 });
-    expect(JSON.parse(await readFile(path, 'utf8')).wishlist.numbers).toEqual([9999]);
+  it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', () => {
+    const c = applyWishlistChange({ numbers: [15, 9999], exclude: [] }, [], [15, 42]);
+    expect(c).toMatchObject({ removed: [15], notFound: [42], total: 1, numbers: [9999] });
   });
-  it('ไม่อยากได้: ย้ายออกจากอยากได้ · ลบได้ · เพิ่มกลับได้', async () => {
-    const { path } = await tmpConfig();
-    let c = await updateWishlist(path, [], [], [9999, 4444]);
+  it('ไม่อยากได้: ย้ายออกจากอยากได้ · ลบได้ · เพิ่มกลับได้', () => {
+    let c = applyWishlistChange(start, [], [], [9999, 4444]);
     expect(c).toMatchObject({ excluded: [9999, 4444], numbers: [], exclude: [4444, 9999], total: 0 });
-    c = await updateWishlist(path, [], [], [4444]);
+    c = applyWishlistChange(c, [], [], [4444]);
     expect(c.alreadyExcluded).toEqual([4444]);
-    c = await updateWishlist(path, [9999], [4444], []);
-    expect(c).toMatchObject({ added: [9999], unexcluded: [9999], removed: [4444], exclude: [], numbers: [9999] });
-    expect(JSON.parse(await readFile(path, 'utf8')).wishlist).toMatchObject({ numbers: [9999], exclude: [] });
+    expect(c.changed).toBe(false);
+    c = applyWishlistChange(c, [9999], [4444], []);
+    expect(c).toMatchObject({ added: [9999], unexcluded: [9999], removed: [4444], exclude: [], numbers: [9999], changed: true });
   });
-  it('ไม่มีอะไรเปลี่ยน → ไม่เขียนไฟล์', async () => {
-    const { path } = await tmpConfig();
-    const before = await readFile(path, 'utf8');
-    await updateWishlist(path, [9999], [42]);
-    expect(await readFile(path, 'utf8')).toBe(before);
+  it('ไม่มีอะไรเปลี่ยน → changed=false', () => {
+    expect(applyWishlistChange(start, [9999], [42]).changed).toBe(false);
   });
 });
 
-describe('เจ้าของเลข + ข้อความสรุป', () => {
+describe('ข้อความสรุปหลังกรอกเลข', () => {
   const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }];
-  it('updateOwners จำคนแรกที่เพิ่ม และคืนสถานะก่อนแก้', async () => {
-    const { dir } = await tmpConfig();
-    const statePath = join(dir, 'state.json');
-    expect(await updateOwners(statePath, 'somchai', [5555], [])).toEqual({});
-    const before = await updateOwners(statePath, 'nok', [5555, 6000], []);
-    expect(before).toEqual({ 5555: 'somchai' });
-    expect((await loadState(statePath)).owners).toEqual({ 5555: 'somchai', 6000: 'nok' });
-    await updateOwners(statePath, 'nok', [], [5555]);
-    expect((await loadState(statePath)).owners).toEqual({ 6000: 'nok' });
-  });
   it('describeNumber บอกวันเปิด / วันนี้ / ผ่านแล้ว / ไม่อยู่ในตาราง', () => {
     expect(describeNumber(5555, entries, '2026-09-15')).toContain('อีก 3 วัน');
     expect(describeNumber(5555, entries, '2026-09-18')).toContain('วันนี้');
@@ -159,24 +130,24 @@ describe('เตือนเลขที่ pattern ครอบอยู่แ�
     expect(text).toContain('ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "เลขตอง", "คู่สลับ"');
     expect(text.split('💡')).toHaveLength(2); // 1234 ไม่โดนเตือน
   });
-  it('readPatternRules รับทั้ง string และ {name, regex}', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'dlt-'));
-    const path = join(dir, 'c.json');
-    await writeFile(path, JSON.stringify({ wishlist: { numbers: [], patterns: ['^9+$', { name: 'ตอง', regex: '^(\\d)\\1{2}$' }], digitSums: [24] } }));
-    expect(await readPatternRules(path)).toEqual({ patterns: [{ name: '^9+$', regex: '^9+$' }, { name: 'ตอง', regex: '^(\\d)\\1{2}$' }], digitSums: [24] });
-  });
 });
 
-describe('ประวัติ', () => {
+describe('ประวัติ (📜 อ่านจาก events)', () => {
   it('แปลง key เป็นข้อความอ่านง่าย', () => {
     expect(describeKey('match:2026-09-18:8ขฉ:5001-6500:8fe91f12')).toBe('🎯 18 กันยายน 2569 · 8ขฉ 5001-6500');
     expect(describeKey('deadline:2026-09-14:8ขจ:8001:7')).toContain('อีก 7 วัน');
   });
-  it('formatHistory เรียงล่าสุดก่อนและตัดที่ limit', () => {
-    const keys = Array.from({ length: 20 }, (_, i) => `stale:F${i}`);
-    const text = formatHistory({ notified: keys }, 5);
-    expect(text).toContain('แจ้งไปแล้ว 20 รายการ');
-    expect(text).toContain('อีก 15 รายการ');
-    expect(formatHistory({ notified: [] })).toBe('ยังไม่เคยแจ้งอะไรเลย');
+  it('describeEvent บอก ใคร ทำอะไร กับเลขไหน โดยไม่โชว์ payload ดิบ', () => {
+    const nok = { id: '1', name: 'nok' };
+    expect(describeEvent({ at: '2026-09-20T01:00:00Z', kind: 'notify', payload: { key: 'deadline:2026-09-14:8ขจ:8001:7' } })).toContain('อีก 7 วัน');
+    expect(describeEvent({ at: '2026-09-20T01:00:00Z', kind: 'wishlist', actor: nok, payload: { added: [5555, 6464], removed: [15], excluded: [] } })).toBe('🔢 👤 nok เพิ่ม 5555, 6464 · ลบ 15');
+    expect(describeEvent({ at: '2026-09-20T01:00:00Z', kind: 'clear', actor: nok, payload: { deleted: 12 } })).toBe('🧹 👤 nok ลบข้อความเก่า 12 ข้อความ');
+    expect(describeEvent({ at: '2026-09-20T01:00:00Z', kind: 'ping', actor: { id: 'cron', name: 'cron' }, payload: { sent: 1 } })).toBe('🚦 ปิงก่อนเปิดจอง 1 รายการ');
+  });
+  it('formatHistory มีเวลาไทยต่อบรรทัด และบอกเมื่อว่าง', () => {
+    const text = formatHistory([{ at: '2026-09-20T01:05:00Z', kind: 'clear', actor: { id: '1', name: 'nok' }, payload: { deleted: 2 } }]);
+    expect(text).toContain('ประวัติ 1 รายการล่าสุด');
+    expect(text).toContain('08:05'); // 01:05Z = 08:05 ไทย
+    expect(formatHistory([])).toContain('ยังไม่มีประวัติ');
   });
 });

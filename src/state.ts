@@ -9,6 +9,8 @@ export interface State {
   lastScheduleVersion?: string;
   /** ใครเพิ่มเลขไหนผ่านปุ่มใน Discord (เลข → ชื่อผู้ใช้) ไว้เตือนว่ามีคนในเซิร์ฟเวอร์เล็งไว้แล้ว */
   owners?: Record<string, string>;
+  /** ค่าเดี่ยว ๆ เช่น panelMessageId · lastCheckAt (ชื่อเดียวกับตาราง meta บน Supabase) */
+  meta?: Record<string, string>;
 }
 
 const EMPTY: State = { notified: [] };

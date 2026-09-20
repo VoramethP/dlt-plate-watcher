@@ -1,17 +1,14 @@
 #!/usr/bin/env node
+// CLI สำหรับรันบนเครื่อง — ส่งได้ทาง webhook เท่านั้น · ปุ่มและ cron อยู่บน Vercel (api/ · ADR-0005)
 import { parseArgs } from 'node:util';
-import { loadConfig } from './config.js';
-import { isStale, loadSchedule, runCheck, runOpeningPing, runPreview, type Env } from './core.js';
-import { createBotNotifier, type BotNotifier } from './notify/bot.js';
-import { COMMAND } from './notify/actions.js';
-import { matchEmbed, panelEmbed, scheduleEmbed, statusEmbed, wishlistEmbed } from './notify/discord.js';
-import { todayBangkok as todayTH } from './thai-date.js';
-import { loadNumerology, meaningLine } from './numerology.js';
+import { resolveConfig } from './config.js';
+import { loadSchedule, runCheck, runPreview, type Env } from './core.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
 import { VEHICLE_LABEL } from './schedule/types.js';
-import { formatThaiDate, minutesOfDayBangkok, todayBangkok } from './thai-date.js';
+import { createStore } from './store.js';
+import { formatThaiDate } from './thai-date.js';
 
 const HELP = `dlt-plate-watcher — เฝ้าตารางเปิดจองเลขทะเบียน แจ้งเตือนผ่าน Discord (ไม่จองแทน)
 
@@ -20,18 +17,17 @@ const HELP = `dlt-plate-watcher — เฝ้าตารางเปิดจ�
   match               พิมพ์เลขใน wishlist ที่จะเปิดจองรอบนี้ (ไม่ส่ง Discord)
   check               ดึงตาราง + ส่งแจ้งเตือนรายการใหม่เข้า Discord (ใช้กับ cron)
   preview             ส่ง match ของรอบนี้เข้า Discord ทันทีโดยไม่สน state (ไว้ดูหน้าตาข้อความ)
-  watch               รันค้างไว้: check ทุกวัน 08:00 และปิงก่อนเปิดจอง 09:50 (เวลาไทย)
 
 ตัวเลือก:
-  --config <path>     ค่าเริ่มต้น watch.config.json
-  --state <path>      ค่าเริ่มต้น .state/notified.json
+  --config <path>     ค่าเริ่มต้น watch.config.json (ถ้ามี env WATCH_CONFIG_JSON จะใช้แทนไฟล์)
+  --state <path>      ค่าเริ่มต้น .state/notified.json (ถ้ามี env DATABASE_URL จะใช้ Supabase แทนไฟล์)
   --file-id <id|url>  ใช้ไฟล์ตารางอื่นแทนค่าใน config (รับ id หรือลิงก์ Drive)
   --dry-run           ไม่ส่ง Discord และไม่บันทึก state
   -h, --help
 
 ปลายทาง Discord (ดู .env.example):
-  DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID   โหมด bot — มีปุ่มใต้ข้อความ (ปุ่มตอบสนองตอน watch รันอยู่)
-  DISCORD_WEBHOOK_URL                      โหมด webhook — ไม่มีปุ่ม`;
+  DISCORD_WEBHOOK_URL                      โหมด webhook — ไม่มีปุ่ม
+  ปุ่ม + cron 08:00/09:50 อยู่บน Vercel — ดู README › โหมด Vercel`;
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -47,14 +43,7 @@ const { values, positionals } = parseArgs({
 const cmd = positionals[0];
 if (values.help || !cmd) { console.log(HELP); process.exit(0); }
 
-const env: Env = {
-  statePath: values['dry-run'] ? `/tmp/dlt-plate-watcher-dry-${process.pid}.json` : values.state,
-};
-
-const startedAt = new Date();
-let lastCheckAt: Date | undefined;
-
-/** ข้อความของคำสั่งแต่ละตัว (ใช้ทั้งใน CLI และปุ่มลัดบน Discord) */
+/** ข้อความของคำสั่งแต่ละตัว */
 function scheduleText(s: Awaited<ReturnType<typeof loadSchedule>>): string {
   const lines = [`ตารางเวอร์ชัน ${s.version} (Drive ${s.sourceFileId})`, ''];
   for (const type of ['car', 'van', 'pickup'] as const) {
@@ -66,77 +55,41 @@ function scheduleText(s: Awaited<ReturnType<typeof loadSchedule>>): string {
   }
   return lines.join('\n');
 }
-function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<ReturnType<typeof loadConfig>>): string {
+function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<ReturnType<typeof resolveConfig>>): string {
   const matches = matchSchedule(s.entries, config);
   if (!matches.length) return 'รอบนี้ไม่มีเลขใน wishlist เปิดจอง';
   return matches.map((m) => `${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}\n` +
     m.numbers.map((n) => `  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`).join('\n')).join('\n\n');
 }
 
-/** เลือกปลายทาง: dry-run → ไม่ส่ง · มี bot token → bot (มีปุ่ม) · ไม่งั้น webhook */
-async function connectNotifier(): Promise<Notifier | undefined> {
+/** เลือกปลายทาง: dry-run → ไม่ส่ง · ไม่งั้น webhook */
+function connectNotifier(): Notifier | undefined {
   if (values['dry-run']) return undefined;
-  const { DISCORD_BOT_TOKEN: token, DISCORD_CHANNEL_ID: channelId, DISCORD_WEBHOOK_URL: webhook } = process.env;
-  if (token && channelId) {
-    return createBotNotifier({
-      token, channelId, configPath: values.config, statePath: env.statePath, stickyPanel: cmd === 'watch',
-      meaning: async (prefix, n) => meaningLine(prefix, n, await loadNumerology()),
-      myEntries: async () => { const c = await getConfig(); return (await loadSchedule(c.scheduleFileId)).entries.filter((e) => e.vehicleType === c.vehicleType); },
-      wishlist: async (owners) => {
-        const c = await getConfig();
-        const entries = (await loadSchedule(c.scheduleFileId).catch(() => ({ entries: [] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
-        return wishlistEmbed(c, owners, entries, todayTH(), await loadNumerology());
-      },
-      panel: async () => {
-        const c = await getConfig();
-        const today = todayTH();
-        const s = await loadSchedule(c.scheduleFileId).catch(() => null);
-        return panelEmbed({
-          config: c, today, startedAt, lastCheckAt, version: s?.version,
-          entries: s ? s.entries.filter((e) => e.vehicleType === c.vehicleType) : [],
-          matches: s ? matchSchedule(s.entries, c) : [],
-          stale: s ? isStale(s, today) : false,
-        });
-      },
-      commands: {
-        [COMMAND.schedule]: async () => {
-          const c = await getConfig();
-          return { embeds: [scheduleEmbed(await loadSchedule(c.scheduleFileId), { title: '📅 ตารางเปิดจองสัปดาห์นี้', config: c, today: todayTH() })] };
-        },
-        [COMMAND.match]: async () => {
-          const c = await getConfig();
-          const matches = matchSchedule((await loadSchedule(c.scheduleFileId)).entries, c);
-          const numerology = await loadNumerology();
-          return matches.length ? { embeds: matches.map((m) => matchEmbed(m, numerology)) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 บนแผงเพื่อเพิ่มเลข';
-        },
-        [COMMAND.check]: async () => { const r = await runCheck(await getConfig(), env); lastCheckAt = new Date(); return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`; },
-        [COMMAND.status]: async () => {
-          const c = await getConfig();
-          const today = todayTH();
-          const next = matchSchedule((await loadSchedule(c.scheduleFileId).catch(() => ({ entries: [] }))).entries, c)
-            .map((m) => m.entry.openDate).filter((d) => d >= today).sort()[0];
-          return { embeds: [statusEmbed({ startedAt, wishlistCount: c.wishlist.numbers.length, patternCount: c.wishlist.patterns.length, vehicleType: c.vehicleType, today, nextMatchDate: next })] };
-        },
-      },
-    });
-  }
-  if (webhook) return webhookNotifier(webhook);
-  return undefined;
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  return webhook ? webhookNotifier(webhook) : undefined;
 }
 
-async function getConfig() {
-  const config = await loadConfig(values.config);
-  if (values['file-id']) {
-    const id = normalizeDriveFileId(values['file-id']);
-    if (!id) throw new Error(`--file-id "${values['file-id']}" ไม่ใช่ id หรือลิงก์ Drive`);
-    config.scheduleFileId = id;
-  }
-  return config;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let closeStore: (() => Promise<void>) | undefined;
 
 async function main() {
+  // dry-run ใช้ state ชั่วคราวและไม่แตะ Supabase — จะได้จำลองได้โดยไม่เขียนอะไรจริง
+  const store = await createStore({
+    statePath: values['dry-run'] ? `/tmp/dlt-plate-watcher-dry-${process.pid}.json` : values.state,
+    configPath: values.config,
+    databaseUrl: values['dry-run'] ? undefined : process.env.DATABASE_URL,
+  });
+  closeStore = store.close?.bind(store);
+  const env: Env = { store };
+  const getConfig = async () => {
+    const config = await resolveConfig({ configPath: values.config, store });
+    if (values['file-id']) {
+      const id = normalizeDriveFileId(values['file-id']);
+      if (!id) throw new Error(`--file-id "${values['file-id']}" ไม่ใช่ id หรือลิงก์ Drive`);
+      config.scheduleFileId = id;
+    }
+    return config;
+  };
+
   switch (cmd) {
     case 'schedule': {
       const config = await getConfig();
@@ -149,49 +102,21 @@ async function main() {
       return;
     }
     case 'preview': {
-      env.notifier = await connectNotifier();
+      env.notifier = connectNotifier();
       const r = await runPreview(await getConfig(), env);
       console.log(`ส่ง preview ${r.sent} embed`);
-      await env.notifier?.close?.();
       return;
     }
     case 'check': {
-      env.notifier = await connectNotifier();
+      env.notifier = connectNotifier();
       const r = await runCheck(await getConfig(), env);
       console.log(`ส่งแจ้งเตือน ${r.sent.length} รายการ`);
-      await env.notifier?.close?.();
       return;
     }
-    case 'watch': {
-      await getConfig(); // ตรวจ config ให้พังตั้งแต่ตอนเริ่ม ไม่ใช่ตอน 08:00
-      env.notifier = await connectNotifier();
-      // โหมด bot: โพสต์แผงควบคุมตอนเริ่ม · หลังจากนั้นแผงจะย้ายมาล่างสุดเองทุกครั้งที่แจ้งเตือน หรือพิมพ์ /panel
-      if (env.notifier && 'sendPanel' in env.notifier) await (env.notifier as BotNotifier).sendPanel();
-      let checkedDay = '';
-      let pingedDay = '';
-      console.log('เริ่มเฝ้า · check ทุกวัน 08:00 · ปิง 09:50 เฉพาะวันที่มีเลขใน wishlist เปิด (เวลาไทย) · Ctrl+C เพื่อหยุด');
-      for (;;) {
-        const day = todayBangkok();
-        const minutes = minutesOfDayBangkok();
-        try {
-          // โหลด config ใหม่ทุกรอบ เพราะปุ่ม "กรอกเลข" แก้ไฟล์ได้ระหว่างรัน
-          const config = await getConfig();
-          if (minutes >= 8 * 60 && checkedDay !== day) {
-            await runCheck(config, env);
-            lastCheckAt = new Date();
-            checkedDay = day;
-          }
-          if (minutes >= 9 * 60 + 50 && pingedDay !== day) {
-            const r = await runOpeningPing(config, env);
-            if (r.sent.length) console.log(`${new Date().toISOString()} ปิงก่อนเปิดจอง ${r.sent.length} รายการ`);
-            pingedDay = day;
-          }
-        } catch (err) {
-          console.error('รอบนี้พลาด:', err instanceof Error ? err.message : err);
-        }
-        await sleep(60_000);
-      }
-    }
+    case 'watch':
+      console.error('คำสั่ง watch ถูกย้ายไปรันบน Vercel แล้ว (ADR-0005) — ดู README › โหมด Vercel · บนเครื่องใช้ `check` กับ cron ของระบบแทน');
+      process.exit(1);
+      break;
     default:
       console.error(`ไม่รู้จักคำสั่ง "${cmd}"\n\n${HELP}`);
       process.exit(1);
@@ -201,4 +126,4 @@ async function main() {
 main().catch((err) => {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
-});
+}).finally(() => closeStore?.());

@@ -1,0 +1,151 @@
+// route ปุ่ม/modal/slash แบบ HTTP — ใช้ DiscordRest ปลอมที่จดทุก request และ store ไฟล์ชั่วคราว ไม่แตะเครือข่าย
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { resolveConfig } from '../src/config.js';
+import { BUTTON, COMMAND, MODAL } from '../src/notify/actions.js';
+import { EMPTY_NUMEROLOGY } from '../src/numerology.js';
+import { handleInteraction, InteractionType, ResponseType, sendPanel, type Interaction, type InteractionDeps } from '../src/notify/interactions.js';
+import type { DiscordRest } from '../src/notify/rest.js';
+import type { Schedule } from '../src/schedule/types.js';
+import { fileStore, HISTORY_KINDS } from '../src/store.js';
+
+const schedule: Schedule = {
+  sourceFileId: 'F', version: 'v1', fetchedAt: '', entries: [
+    { vehicleType: 'car', openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' },
+    { vehicleType: 'car', openDate: '2026-09-21', prefix: '8ขช', from: 1, to: 1500, registerBy: '2026-10-21' },
+  ],
+};
+
+function fakeRest() {
+  const calls: Array<{ method: string; path: string; body?: unknown }> = [];
+  let nextId = 100;
+  const rest: DiscordRest = {
+    async request(method, path, body) {
+      calls.push({ method, path, body });
+      if (method === 'POST' && path.endsWith('/messages')) return { id: String(nextId++), author: { id: 'bot' }, type: 0 } as never;
+      if (method === 'GET' && path.includes('/messages?limit=100')) {
+        // ข้อความ 3 อันของ bot (snowflake ใหม่ = ยังไม่ถึง 14 วัน) + 1 ของคนอื่น + อันที่กด
+        const fresh = String((BigInt(Date.now() - 1420070400000) << 22n));
+        return [{ id: 'keep', author: { id: 'bot' }, type: 0 }, { id: fresh, author: { id: 'bot' }, type: 0 }, { id: String(BigInt(fresh) + 1n), author: { id: 'bot' }, type: 0 }, { id: '7', author: { id: 'human' }, type: 0 }] as never;
+      }
+      if (method === 'GET') return [] as never;
+      return undefined as never;
+    },
+  };
+  return { rest, calls, patched: () => calls.filter((c) => c.method === 'PATCH').map((c) => c.body as { content?: string; embeds?: Array<{ title: string }> }) };
+}
+
+async function deps(): Promise<InteractionDeps & { calls: ReturnType<typeof fakeRest>['calls']; patched: ReturnType<typeof fakeRest>['patched'] }> {
+  const dir = await mkdtemp(join(tmpdir(), 'dlt-ix-'));
+  const configPath = join(dir, 'watch.config.json');
+  await writeFile(configPath, JSON.stringify({ scheduleFileId: 'x'.repeat(24), vehicleType: 'car', wishlist: { numbers: [5555], patterns: [{ name: 'ตอง', regex: '^(\\d)\\1{2,3}$' }], digitSums: [] } }));
+  const store = fileStore({ statePath: join(dir, '.state', 's.json'), configPath });
+  const { rest, calls, patched } = fakeRest();
+  return {
+    rest, store, channelId: 'C', calls, patched, log: () => undefined,
+    config: () => resolveConfig({ configPath, store, env: {} }),
+    schedule: async () => schedule,
+    numerology: async () => EMPTY_NUMEROLOGY,
+    now: new Date('2026-09-15T03:00:00Z'),
+  };
+}
+
+const nok = { id: 'u1', username: 'nok', global_name: 'Nok' };
+const base = { id: 'i1', application_id: 'app', token: 'tok', channel_id: 'C', member: { user: nok } };
+const button = (custom_id: string, extra: Partial<Interaction> = {}): Interaction => ({ ...base, type: InteractionType.MESSAGE_COMPONENT, data: { custom_id }, message: { id: 'keep', author: { id: 'bot' } }, ...extra });
+const run = async (d: InteractionDeps, i: Interaction) => { const r = await handleInteraction(i, d); await r.work?.(); return r.response; };
+
+describe('Interactions Endpoint', () => {
+  it('PING → PONG โดยไม่แตะอะไร', async () => {
+    const d = await deps();
+    expect((await handleInteraction({ ...base, type: InteractionType.PING }, d)).response).toEqual({ type: ResponseType.PONG });
+    expect(d.calls).toHaveLength(0);
+  });
+
+  it('ปุ่มที่ต้องโหลดตาราง → ตอบ deferred ทันที แล้ว PATCH @original ทีหลัง', async () => {
+    const d = await deps();
+    const r = await handleInteraction(button(COMMAND.schedule), d);
+    expect(r.response).toMatchObject({ type: ResponseType.DEFERRED_CHANNEL_MESSAGE, data: { flags: 64 } });
+    expect(d.calls).toHaveLength(0); // ยังไม่ทำอะไรก่อน work()
+    await r.work!();
+    expect(d.calls[0]).toMatchObject({ method: 'PATCH', path: '/webhooks/app/tok/messages/@original' });
+    expect(d.patched()[0].embeds?.[0].title).toContain('ตารางเปิดจองสัปดาห์นี้');
+  });
+
+  it('❓ คู่มือ และ 📤 แชร์ ตอบจบในตัว (ไม่ deferred)', async () => {
+    const d = await deps();
+    const guide = await handleInteraction(button(COMMAND.guide), d);
+    expect(guide.response).toMatchObject({ type: ResponseType.CHANNEL_MESSAGE });
+    expect(guide.work).toBeUndefined();
+    const share = await handleInteraction(button(BUTTON.share, { message: { id: 'm', author: { id: 'bot' }, embeds: [{ title: '🎯 หัว', fields: [{ name: 'ตอง (1)', value: '`5555`' }] }] } }), d);
+    expect(JSON.stringify(share.response)).toContain('ตอง (1): 5555');
+  });
+
+  it('🔢 เปิด modal 3 ช่อง · ส่ง modal → แก้ wishlist ผ่าน store + ลง events + ตอบรายเลข', async () => {
+    const d = await deps();
+    const modal = await handleInteraction(button(BUTTON.addNumber), d);
+    expect(modal.response).toMatchObject({ type: ResponseType.MODAL, data: { custom_id: MODAL.addNumber } });
+    expect((modal.response.data as { components: unknown[] }).components).toHaveLength(3);
+
+    const submit: Interaction = { ...base, type: InteractionType.MODAL_SUBMIT, data: { custom_id: MODAL.addNumber, components: [
+      { components: [{ custom_id: MODAL.field, value: '6464, 5555 abc' }] },
+      { components: [{ custom_id: MODAL.excludeField, value: '4444' }] },
+      { components: [{ custom_id: MODAL.removeField, value: '' }] },
+    ] } };
+    await run(d, submit);
+    const text = d.patched()[0].content!;
+    expect(text).toContain('✅ **6464** เพิ่มแล้ว');
+    expect(text).toContain('ℹ️ **5555** อยู่ใน wishlist อยู่แล้ว');
+    expect(text).toContain('🚫 **4444**');
+    expect(text).toContain('❌ "abc"');
+    expect(await d.store.loadWishlist()).toEqual({ numbers: [5555, 6464], exclude: [4444] });
+    expect((await d.store.loadState()).owners).toEqual({ 6464: 'Nok' });
+    const ev = await d.store.recentEvents(5, HISTORY_KINDS);
+    expect(ev[0]).toMatchObject({ kind: 'wishlist', actor: { id: 'u1', name: 'Nok' }, payload: { added: [6464], excluded: [4444] } });
+  });
+
+  it('📜 ประวัติ อ่านจาก events · 🧹 ลบเฉพาะข้อความของ bot แล้วโพสต์แผงใหม่', async () => {
+    const d = await deps();
+    await d.store.logEvent({ kind: 'notify', payload: { key: 'stale:F' } });
+    await run(d, button(BUTTON.showHistory));
+    expect(d.patched()[0].content).toContain('🗓️ ตารางหมดอายุ');
+
+    await run(d, button(BUTTON.clearHistory));
+    const bulk = d.calls.find((c) => c.path.endsWith('/bulk-delete'));
+    expect((bulk?.body as { messages: string[] }).messages).toHaveLength(2); // ไม่รวม keep และไม่รวมของ human
+    expect(d.calls.some((c) => c.method === 'POST' && c.path === '/channels/C/messages')).toBe(true); // แผงใหม่
+    expect(d.patched().at(-1)?.content).toContain('ลบข้อความเก่าของ bot ไป 2 ข้อความ');
+    expect((await d.store.recentEvents(1, ['clear']))[0].payload).toEqual({ deleted: 2 });
+  });
+
+  it('sendPanel ลบแผงเก่าจาก meta · จำ id ใหม่ · ปักหมุด', async () => {
+    const d = await deps();
+    await d.store.setMeta('panelMessageId', '55');
+    await sendPanel(d);
+    expect(d.calls.map((c) => `${c.method} ${c.path}`)).toEqual(expect.arrayContaining(['DELETE /channels/C/messages/55', 'POST /channels/C/messages', 'PUT /channels/C/pins/100']));
+    expect(await d.store.getMeta('panelMessageId')).toBe('100');
+    const panel = d.calls.find((c) => c.method === 'POST')!.body as { embeds: Array<{ description: string }>; components: unknown[] };
+    expect(panel.embeds[0].description).toContain('⏳ เลขในฝันเปิดครั้งถัดไป');
+    expect(panel.components).toHaveLength(2);
+  });
+
+  it('/panel → deferred แล้วโพสต์แผง · 🔄 เช็คตอนนี้ → ส่งแจ้งเตือน + แผงตาม + events actor เป็นคนกด', async () => {
+    const d = await deps();
+    await run(d, { ...base, type: InteractionType.APPLICATION_COMMAND, data: { name: 'panel' } });
+    expect(d.patched()[0].content).toContain('ย้ายแผงควบคุม');
+
+    await run(d, button(COMMAND.check));
+    expect(d.patched().at(-1)?.content).toMatch(/🔄 เช็คแล้ว · ควรแจ้ง \d+ · ส่งใหม่ \d+/);
+    const check = (await d.store.recentEvents(1, ['check']))[0];
+    expect(check.actor).toEqual({ id: 'u1', name: 'Nok' });
+  });
+
+  it('งานหลังตอบพัง → PATCH ข้อความ error ให้คนกดเห็น ไม่โยนออกมา', async () => {
+    const d = await deps();
+    d.schedule = async () => { throw new Error('Drive ล่ม'); };
+    await run(d, button(COMMAND.match));
+    expect(d.patched()[0].content).toContain('❌ bot พลาด: Drive ล่ม');
+  });
+});

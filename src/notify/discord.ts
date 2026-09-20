@@ -20,7 +20,7 @@ export interface Embed {
 const COLOR = { info: 0x3b82f6, match: 0x22c55e, warn: 0xf59e0b, closed: 0x6b7280 } as const;
 const FOOTER = 'dlt-plate-watcher · แจ้งเตือนอย่างเดียว การจองต้องทำเองผ่าน ThaID';
 
-/** ปลายทางการแจ้ง — webhook หรือ bot (ดู bot.ts) · core.ts ไม่รู้ว่าเป็นแบบไหน */
+/** ปลายทางการแจ้ง — webhook (บนเครื่อง) หรือ Discord REST ด้วย bot token (ดู rest.ts) · core.ts ไม่รู้ว่าเป็นแบบไหน */
 export interface Notifier {
   send(embeds: Embed[]): Promise<void>;
   close?(): Promise<void>;
@@ -156,23 +156,6 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
   };
 }
 
-export function statusEmbed(info: { startedAt: Date; wishlistCount: number; patternCount: number; vehicleType: string; today: string; nextMatchDate?: string }): Embed {
-  const up = Math.round((Date.now() - info.startedAt.getTime()) / 60000);
-  const upText = up < 60 ? `${up} นาที` : `${Math.floor(up / 60)} ชม. ${up % 60} นาที`;
-  return {
-    title: '🧭 สถานะ bot',
-    color: COLOR.match,
-    fields: [
-      { name: 'ออนไลน์มา', value: upText, inline: true },
-      { name: 'wishlist', value: `${info.wishlistCount} เลข · ${info.patternCount} pattern`, inline: true },
-      { name: 'ประเภทรถ', value: VEHICLE_LABEL[info.vehicleType as keyof typeof VEHICLE_LABEL] ?? info.vehicleType, inline: true },
-      { name: 'รอบถัดไป', value: 'check ทุกวัน 08:00 · ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)' },
-      { name: 'เลขในฝันเปิดครั้งถัดไป', value: info.nextMatchDate ? `${formatThaiDate(info.nextMatchDate)} (อีก ${daysBetween(info.today, info.nextMatchDate)} วัน)` : 'ไม่มีในตารางสัปดาห์นี้' },
-    ],
-    footer: { text: FOOTER },
-  };
-}
-
 export function reminderEmbed(kind: 'open' | 'deadline', e: ScheduleEntry, daysLeft: number): Embed {
   return kind === 'open'
     ? {
@@ -195,14 +178,13 @@ export interface PanelInfo {
   entries: ScheduleEntry[];
   matches: Match[];
   today: string;
-  startedAt: Date;
+  /** จาก meta.lastCheckAt — serverless ไม่มี uptime ให้โชว์ (ADR-0005) */
   lastCheckAt?: Date;
   version?: string;
   stale?: boolean;
 }
 
-const bkkTime = (d: Date) => d.toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
-const uptimeText = (since: Date) => { const m = Math.round((Date.now() - since.getTime()) / 60000); return m < 60 ? `${m} นาที` : `${Math.floor(m / 60)} ชม. ${m % 60} นาที`; };
+const bkkTime = (d: Date) => d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /** 🏠 landing panel — อยู่ล่างสุดของช่องเสมอ ตอบ "ตอนนี้เป็นยังไง ต้องทำอะไร" โดยไม่ต้องกด */
 export function panelEmbed(info: PanelInfo): Embed {
@@ -229,7 +211,7 @@ export function panelEmbed(info: PanelInfo): Embed {
     color,
     fields: [
       { name: '📋 เฝ้าอยู่', value: `${summary}\n${nums || '(ยังไม่ระบุเลข · กด 🔢)'}` },
-      { name: '🧭 bot', value: `ออนไลน์ ${uptimeText(info.startedAt)}\nเช็คล่าสุด ${info.lastCheckAt ? bkkTime(info.lastCheckAt) : 'ยังไม่เช็ค'} · รอบถัดไป 08:00 / ปิง 09:50`, inline: true },
+      { name: '🧭 bot', value: `เช็คล่าสุด ${info.lastCheckAt ? bkkTime(info.lastCheckAt) : 'ยังไม่เช็ค'}\nรอบถัดไป 08:00 / ปิง 09:50`, inline: true },
       { name: '📅 ตาราง', value: `${week}\n${info.version ? `อัปเดต ${info.version.replace(/:\d\d GMT$/, '')}` : 'โหลดไม่ได้'}`, inline: true },
       { name: 'ปุ่ม', value: 'แถวบน = ทำ · แถวล่าง = ดู · ทุกคำตอบเห็นเฉพาะคุณ · หาแผงไม่เจอพิมพ์ `/panel`' },
     ],
@@ -260,7 +242,7 @@ export function guideEmbeds(): Embed[] {
         { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule` · ตารางเปิดจองทั้ง 3 ประเภทรถ วันไหนหมวดอะไร ช่วงเลขเท่าไหร่ จดภายในวันไหน' },
         { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน' },
         { name: '🔄 เช็คตอนนี้', value: '= `npm run check` · ดึงตารางล่าสุดแล้วส่งแจ้งเตือนเฉพาะที่ยังไม่เคยส่ง (ปกติทำเองทุกวัน 08:00)' },
-        { name: '📜 ดูประวัติแชต', value: 'รายการที่ bot เคยแจ้งไปแล้ว (ล่าสุดก่อน) เห็นเฉพาะคุณ' },
+        { name: '📜 ดูประวัติแชต', value: 'เหตุการณ์ล่าสุด 15 รายการ: bot แจ้งอะไร ใครเพิ่ม/ลบเลขไหน ใครลบแชต (ล่าสุดก่อน) เห็นเฉพาะคุณ' },
         { name: '❓ คู่มือ', value: 'ข้อความนี้' },
         { name: 'สิ่งที่ bot จะไม่ทำ', value: 'ไม่ล็อกอิน ThaID · ไม่กรอกเลขบัตร · ไม่กดจองแทน · ไม่เช็คกับระบบขนส่งว่าเลขถูกจองแล้วหรือยัง' },
       ],

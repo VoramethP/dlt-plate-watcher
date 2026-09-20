@@ -42,7 +42,7 @@ describe('คู่มือและแผงควบคุม', () => {
     const entry = { vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' };
     const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555, 9999], patterns: [{ name: 'ตอง', regex: 'x' }], digitSums: [], exclude: [4444] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
     const match = { entry, numbers: [5555], reasons: new Map([[5555, ['ตอง']]]), reasonOrder: ['ตอง'] };
-    const base = { config, entries: [entry], matches: [match], startedAt: new Date(), version: 'Mon, 14 Sep 2026 01:58:13 GMT' };
+    const base = { config, entries: [entry], matches: [match], version: 'Mon, 14 Sep 2026 01:58:13 GMT' };
     const upcoming = panelEmbed({ ...base, today: '2026-09-15' });
     expect(upcoming.description).toContain('⏳ เลขในฝันเปิดครั้งถัดไป **ศ. 18 ก.ย.** (อีก 3 วัน)');
     expect(JSON.stringify(upcoming)).toContain('2 เลข · 1 รูปแบบ · 🚫 1');
@@ -54,7 +54,7 @@ describe('คู่มือและแผงควบคุม', () => {
   });
 });
 
-import { scheduleEmbed, statusEmbed } from '../src/notify/discord.js';
+import { scheduleEmbed } from '../src/notify/discord.js';
 import type { Schedule } from '../src/schedule/types.js';
 describe('scheduleEmbed แบบมี config/today', () => {
   const schedule: Schedule = { sourceFileId: 'F', version: 'v1', fetchedAt: '', entries: [
@@ -76,11 +76,6 @@ describe('scheduleEmbed แบบมี config/today', () => {
     const e = scheduleEmbed(schedule);
     expect(e.fields![0].value).toContain('▫️');
     expect(e.description).not.toContain('ผ่านไปแล้ว');
-  });
-  it('statusEmbed บอกเลขในฝันเปิดครั้งถัดไป', () => {
-    const e = statusEmbed({ startedAt: new Date(Date.now() - 90 * 60000), wishlistCount: 3, patternCount: 2, vehicleType: 'car', today: '2026-09-15', nextMatchDate: '2026-09-18' });
-    expect(JSON.stringify(e)).toContain('1 ชม. 30 นาที');
-    expect(JSON.stringify(e)).toContain('อีก 3 วัน');
   });
 });
 

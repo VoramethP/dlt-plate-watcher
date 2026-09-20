@@ -19,11 +19,11 @@
 | ขนส่งออกตารางสัปดาห์ใหม่ | สรุปตารางทั้ง 3 ประเภทรถ |
 | ตารางมีเลขที่ตรง wishlist | วันเปิด หมวดอักษร ช่วงเลข และเลขที่ตรงพร้อมเหตุผล |
 | 1 วันก่อนวันเปิดจองของรถประเภทคุณ | เตือนเตรียม ThaID · เลขตัวถัง · ชื่อตรงบัตร |
-| 09:50 น. ของวันที่มีเลขในฝันเปิด (โหมด `watch`) | ปิงว่าอีก 10 นาทีเปิด พร้อมลิงก์หน้าจอง |
+| 09:50 น. ของวันที่มีเลขในฝันเปิด (โหมด Vercel) | ปิงว่าอีก 10 นาทีเปิด พร้อมลิงก์หน้าจอง |
 | 7 วัน และ 1 วันก่อนหมดเขตจดทะเบียน | เตือนว่าเลขจะหลุดถ้าไม่ไปจด |
 | ตารางที่อ่านได้หมดอายุแล้ว | เตือนให้ไปเช็ค file id ใหม่ (ดูด้านล่าง) |
 
-ทุกอย่างถูกจำไว้ใน `.state/` จึงแจ้งแต่ละเรื่องครั้งเดียว รัน cron ถี่แค่ไหนก็ไม่สแปม
+ทุกอย่างถูกจำไว้ (Supabase หรือ `.state/`) จึงแจ้งแต่ละเรื่องครั้งเดียว รัน cron ถี่แค่ไหนก็ไม่สแปม
 
 ## เริ่มใช้ใน 5 นาที
 
@@ -60,56 +60,62 @@ npm run match           # ดูว่าเลขในฝันจะเปิ
 npm run check           # ส่งแจ้งเตือนรายการใหม่เข้า Discord
 ```
 
-## โหมด bot — มีปุ่มใต้ข้อความ
+## โหมด Vercel — มีปุ่ม รันตลอดโดยไม่ต้องเปิดเครื่อง (ฟรี)
 
-ถ้าอยากได้ปุ่ม 4 ปุ่มใต้ข้อความ (กรอกเลขที่อยากจอง · ดูประวัติแชต · ลบประวัติแชตเก่า · เข้าสู่เว็บไซต์) ต้องใช้ bot แทน webhook
-เพราะ Discord ไม่ให้ webhook ธรรมดาส่งปุ่ม ([ADR-0004](docs/adr/0004-discord-bot-for-buttons.md))
+ปุ่มใต้ข้อความและ cron 08:00/09:50 รันบน **Vercel Functions + Supabase** ([ADR-0005](docs/adr/0005-vercel-interactions-endpoint-supabase.md)):
+Discord ยิง interaction มาที่ `api/interactions` (ตรวจลายเซ็นทุกครั้ง) · สถานะทั้งหมดอยู่ใน Supabase (ตาราง `notified` · `wishlist` · `meta` · `events`)
+ไม่มี process รันค้างที่ไหน ปิด Mac ได้
 
-1. [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application** → แท็บ **Bot** → **Reset Token** → คัดลอกใส่ `DISCORD_BOT_TOKEN` (ไม่ต้องเปิด Privileged Intents ใด ๆ)
-2. แท็บ **OAuth2 → URL Generator** → scopes `bot` **และ** `applications.commands` (อันหลังทำให้พิมพ์ `/panel` ได้) → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** → เปิดลิงก์ที่ได้เพื่อเชิญ bot เข้า server
-3. ใน Discord เปิด **User Settings → Advanced → Developer Mode** แล้วคลิกขวาที่ช่อง → **Copy Channel ID** ใส่ `DISCORD_CHANNEL_ID`
-4. `npm run watch` — bot จะออนไลน์และตอบปุ่มได้ (`check`/`preview` ก็ส่งผ่าน bot ได้ แต่ปุ่มจะตอบสนองเฉพาะตอน watch รันอยู่)
+### 1. Discord application
 
-**🏠 landing panel** อยู่ล่างสุดของช่องเสมอ บอกสถานะวันนี้ · wishlist · bot โดยไม่ต้องกด และมีปุ่ม 2 แถว
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → **New Application** → แท็บ **Bot** → **Reset Token** → เก็บเป็น `DISCORD_BOT_TOKEN` (ไม่ต้องเปิด Privileged Intents)
+2. แท็บ **General Information** → คัดลอก **Application ID** (`DISCORD_APP_ID`) และ **Public Key** (`DISCORD_PUBLIC_KEY`)
+3. แท็บ **OAuth2 → URL Generator** → scopes `bot` + `applications.commands` → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** (+ Pin Messages ถ้าอยากให้ปักหมุดแผง) → เปิดลิงก์เชิญ bot เข้า server
+4. ใน Discord: **User Settings → Advanced → Developer Mode** → คลิกขวาช่อง → **Copy Channel ID** (`DISCORD_CHANNEL_ID`) · คลิกขวา server → Copy Server ID (`DISCORD_GUILD_ID` ทางเลือก ทำให้ `/panel` ใช้ได้ทันที)
+
+### 2. Supabase
+
+1. [supabase.com](https://supabase.com) → New project (region **Singapore** ให้ตรงกับ Vercel `sin1`)
+2. **Project Settings → Database → Connection string** → **Transaction pooler** (port 6543) = `DATABASE_URL` · **Session pooler** (5432) = `DIRECT_DATABASE_URL`
+3. บนเครื่อง: ใส่สองค่านี้ใน `.env` แล้ว `npm run db:migrate` — สร้าง 4 ตาราง (RLS เปิด ไม่มี policy = Data API ปิด โค้ดต่อตรงด้วย connection string)
+
+### 3. Vercel
+
+1. [vercel.com](https://vercel.com) → **Add New Project** → import repo นี้ (Framework: Other · ไม่ต้อง build command)
+2. **Settings → Environment Variables** ใส่ทุกตัวใน [`.env.example`](.env.example) ส่วน "โหมด Vercel":
+   `DISCORD_BOT_TOKEN` `DISCORD_CHANNEL_ID` `DISCORD_PUBLIC_KEY` `DATABASE_URL` `CRON_SECRET` (สุ่ม `openssl rand -hex 32`) และ `WATCH_CONFIG_JSON` (เนื้อหา `watch.config.json` ทั้งไฟล์ บรรทัดเดียว)
+3. Deploy → ได้ URL เช่น `https://dlt-plate-watcher.vercel.app`
+4. กลับไป Developer Portal → **General Information → Interactions Endpoint URL** = `https://<app>.vercel.app/api/interactions` → Save (Discord จะยิง PING ทดสอบ ต้องขึ้นว่าบันทึกสำเร็จ)
+5. บนเครื่อง `npm run register` (ต้องมี `DISCORD_BOT_TOKEN` + `DISCORD_APP_ID` ใน `.env`) → พิมพ์ `/panel` ในช่องได้
+6. `vercel.json` ตั้ง Vercel Cron ยิง `api/cron/check` ทุกวัน 08:00 ไทยไว้แล้ว (แผน Hobby คลาดได้ ±59 นาที ยังทันก่อน 10:00)
+7. ปิง 09:50 ต้องตรงนาที → ใช้ [cron-job.org](https://cron-job.org) (ฟรี): URL `https://<app>.vercel.app/api/cron/ping` · เวลา 09:50 Asia/Bangkok ทุกวัน · header `Authorization: Bearer <CRON_SECRET>`
+
+ทดสอบ: พิมพ์ `/panel` → กดทุกปุ่ม · ยิง `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>.vercel.app/api/cron/check` ดูว่าแจ้งเตือน + แผงย้ายมาล่างสุด
+
+**🏠 landing panel** อยู่ล่างสุดของช่องเสมอ บอกสถานะวันนี้ · wishlist · เช็คล่าสุด โดยไม่ต้องกด และมีปุ่ม 2 แถว
 
 | แถว | ปุ่ม |
 |---|---|
 | ทำ | 🔢 กรอกเลขที่อยากจอง (เพิ่ม / ไม่อยากได้ / ลบ) · 📋 เลขที่เฝ้าอยู่ · 🧹 ลบประวัติแชตเก่า · 🌐 เข้าสู่เว็บไซต์ |
-| ดู | 📅 ตาราง · 🎯 เลขในฝัน · 🔄 เช็คตอนนี้ · 📜 ประวัติ · ❓ คู่มือ |
+| ดู | 📅 ตาราง · 🎯 เลขในฝัน · 🔄 เช็คตอนนี้ · 📜 ประวัติ (จาก transaction log) · ❓ คู่มือ |
 
 ใต้การ์ดแจ้งเตือนมีแค่ 📤 แชร์เลข (ข้อความล้วนคัดลอกได้) กับ 🌐 เข้าสู่เว็บไซต์ · รายละเอียดทุกปุ่มใน [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
-
-**แผงควบคุม** เป็นอีกข้อความหนึ่งที่มีปุ่มลัดคำสั่ง 📅 ตารางสัปดาห์นี้ · 🎯 เลขในฝันรอบนี้ · 🔄 เช็คตอนนี้ · 🧭 สถานะ bot
-bot โพสต์ตอนเริ่ม `watch` ปักหมุดไว้ และย้ายมาล่างสุดทุกครั้งที่มีแจ้งเตือน · หาไม่เจอพิมพ์ `/panel` ได้ทุกเมื่อ · กด **❓ คู่มือ** บนแผงเพื่อดูว่าทุกปุ่มทำอะไร (เนื้อหาเดียวกับ [docs/UI-GUIDE.md](docs/UI-GUIDE.md))
+ทุกเหตุการณ์ (ใครเพิ่ม/ลบเลขไหน · แจ้งอะไรไป · ใครลบแชต) ถูกบันทึกในตาราง `events` บน Supabase เก็บตลอด
 
 ## ความหมายเลขศาสตร์ (ถ้าอยากได้)
 
 [`numerology.json`](numerology.json) รวบรวมตารางค่าตัวอักษร ผลรวม และคู่เลข จากแหล่งเผยแพร่สาธารณะ 6 แหล่ง (รายชื่อในไฟล์) โดยจดว่าแต่ละรายการมาจากแหล่งไหน การ์ดเลขในฝันจะมีส่วน 🔮 จัดกลุ่มเลขและบอกจำนวนแหล่งที่เห็นตรงกัน
 ยังคงเป็นความเชื่อ ไม่ใช่ข้อเท็จจริง · แก้ได้ทุกช่อง · ลบไฟล์ทิ้งถ้าไม่ต้องการ
 
-## วิธีรันให้เตือนเอง
+## วิธีรันบนเครื่อง (ไม่มีปุ่ม)
 
-**แบบง่ายสุด: รันค้างไว้บนเครื่องที่เปิดตลอด**
-
-```bash
-npm run watch           # check ทุกวัน 08:00 + ปิง 09:50 ในวันที่มีเลขในฝันเปิด (เวลาไทย)
-```
-
-**แบบ GitHub Actions (ฟรี ไม่ต้องมีเครื่อง)** — fork repo นี้ แล้วตั้ง secrets 2 ตัวใน Settings → Secrets → Actions:
-
-| Secret | ค่า |
-|---|---|
-| `DISCORD_WEBHOOK_URL` | webhook URL ของช่องที่จะให้แจ้ง |
-| `WATCH_CONFIG_JSON` | เนื้อหา `watch.config.json` ทั้งไฟล์ |
-
-[`daily-check.yml`](.github/workflows/daily-check.yml) จะรัน `check` ทุกเช้าวันทำการ 08:00 น. (cron ของ GitHub อาจคลาดได้หลายนาที
-จึงไม่ใช้ปิง 09:50 ในโหมดนี้) กด Run workflow เพื่อทดสอบได้ทันที
-
-**แบบ cron ของตัวเอง**
+ถ้าไม่อยากตั้ง Vercel: ใส่ `DISCORD_WEBHOOK_URL` ใน `.env` แล้วรัน `check` ด้วย cron ของระบบ — สถานะเก็บในไฟล์ `.state/` (หรือใส่ `DATABASE_URL` ด้วยจะใช้ Supabase ชุดเดียวกับ Vercel)
 
 ```cron
-0 8 * * 1-5  cd /path/to/dlt-plate-watcher && npm run -s check >> check.log 2>&1
+0 8 * * *  cd /path/to/dlt-plate-watcher && npm run -s check >> check.log 2>&1
 ```
+
+ใช้เป็น fallback ตอน Vercel ล่มได้ทันที เพราะ CLI กับ api/ ใช้ตรรกะเดียวกัน (`src/core.ts`)
 
 ## ตารางมาจากไหน แล้วทำไมต้องมี `scheduleFileId`
 
@@ -131,17 +137,20 @@ npm run watch           # check ทุกวัน 08:00 + ปิง 09:50 ใ�
 schedule            พิมพ์ตารางเปิดจองรอบปัจจุบัน
 match               พิมพ์เลขใน wishlist ที่จะเปิดจองรอบนี้
 check               ดึงตาราง + ส่งแจ้งเตือนรายการใหม่เข้า Discord
-watch               รันค้างไว้: check 08:00 และปิง 09:50 ทุกวัน (เวลาไทย)
+preview             ส่ง match ของรอบนี้ทันทีโดยไม่สน state (ดูหน้าตาข้อความ)
 
 --config <path>     ค่าเริ่มต้น watch.config.json
---state <path>      ค่าเริ่มต้น .state/notified.json
+--state <path>      ค่าเริ่มต้น .state/notified.json (มี DATABASE_URL → ใช้ Supabase แทน)
 --file-id <id|url>  ใช้ไฟล์ตารางอื่นชั่วคราว
 --dry-run           ไม่ส่ง Discord ไม่บันทึก state (พิมพ์ embed ออกจอแทน)
+
+npm run register    ลงทะเบียน /panel (ครั้งเดียว)
+npm run db:migrate  สร้าง/อัปเดตตารางบน Supabase จาก drizzle/
 ```
 
 ## แผนภาพ
 
-ไฟล์ [`drawio/dlt-plate-watcher.drawio`](drawio/dlt-plate-watcher.drawio) เปิดด้วย [draw.io](https://app.diagrams.net) มี 8 หน้า: ภาพรวมระบบ · flow ของ `check` · ตรรกะการแจ้ง · parser PDF · `watch` loop · การ deploy · roadmap · หน้า raw สำหรับร่าง
+ไฟล์ [`drawio/dlt-plate-watcher.drawio`](drawio/dlt-plate-watcher.drawio) เปิดด้วย [draw.io](https://app.diagrams.net) มี 9 หน้า: ภาพรวมระบบ · flow ของ `check` · ตรรกะการแจ้ง · parser PDF · watch loop (เดิม) · การ deploy · roadmap · bot และปุ่ม · หน้า raw สำหรับร่าง (หน้า 05/06 ยังเป็นภาพก่อน Phase 6 — ดู ADR-0005)
 ดูเป็นรูปได้ที่ [`drawio/png/`](drawio/png/)
 
 ![ภาพรวมระบบ](drawio/png/01-overview.png)
@@ -149,25 +158,33 @@ watch               รันค้างไว้: check 08:00 และปิ�
 ## โครงสร้าง
 
 ```
+api/
+  interactions.ts     Interactions Endpoint (ตรวจ Ed25519 → route) · cron/check.ts 08:00 · cron/ping.ts 09:50
 src/
-  cli.ts              จุดเข้า · แปลง argument · เลือกปลายทาง bot/webhook
-  core.ts             ขั้นตอนหลัก: โหลดตาราง → วางแผนแจ้ง → ส่งเฉพาะที่ใหม่ → บันทึก state
-  config.ts           schema ของ watch.config.json (Zod)
+  cli.ts              จุดเข้าบนเครื่อง · webhook เท่านั้น
+  app.ts              ประกอบของจาก env สำหรับ api/ (คู่ของ cli.ts)
+  core.ts             ขั้นตอนหลัก: โหลดตาราง → วางแผนแจ้ง → ส่งเฉพาะที่ใหม่ → บันทึก
+  config.ts           schema ของ watch.config.json (Zod) · resolveConfig = env/ไฟล์ + wishlist จาก store
+  store.ts            Store interface · fileStore (.state/) · createStore เลือกตาม DATABASE_URL
+  db/                 schema.ts (Drizzle) · client.ts · store.ts (Supabase)
   match.ts            จับ wishlist กับช่วงเลขที่เปิด
   numerology.ts       เลขศาสตร์: ผลรวมทั้งป้าย + คู่เลข → สาย (ตาราง numerology.json แก้ได้)
-  state.ts            จำว่าแจ้งอะไรไปแล้ว (.state/notified.json)
+  state.ts            รูปไฟล์ .state/notified.json
   thai-date.ts        พ.ศ./ชื่อเดือนไทย ↔ ISO · เวลาไทย
   schedule/fetch.ts   โหลด PDF จาก Drive (+ Last-Modified เป็นเวอร์ชันตาราง)
   schedule/parse.ts   PDF → แถวตาราง (จัดกลุ่ม text ตามพิกัด y แล้ว regex)
   notify/discord.ts   ประกอบ embed · Notifier interface · webhook
-  notify/bot.ts       โหมด bot (discord.js) ส่งข้อความพร้อมปุ่ม + รับการกด
+  notify/rest.ts      Discord REST ด้วย bot token (ส่ง/ลบ/ปักหมุด · ไม่มี gateway)
+  notify/interactions.ts  route ปุ่ม/modal//panel → response + งานหลังตอบ
+  notify/verify.ts    ตรวจลายเซ็น Ed25519
   notify/actions.ts   ตรรกะของปุ่ม (แก้ wishlist, จัดรูปประวัติ) แบบ pure
+drizzle/              migration SQL (สร้างด้วย npm run db:generate)
 tests/                Vitest · มี PDF จริงของขนส่งเป็น fixture
 docs/adr/             เหตุผลของการตัดสินใจสำคัญ
 ```
 
 ```bash
-npm test              # 37 tests
+npm test              # 81 tests
 npm run typecheck
 ```
 
@@ -181,10 +198,10 @@ npm run typecheck
 ## English summary
 
 Watches the weekly plate-number reservation schedule published by Thailand's Department of Land Transport (a PDF embedded from Google Drive),
-matches it against your wishlist (exact numbers, regex patterns, digit sums) and posts Discord webhook alerts:
+matches it against your wishlist (exact numbers, regex patterns, digit sums) and posts Discord alerts:
 new schedule, matching numbers, day-before and 10-minutes-before reminders, and registration deadlines.
 **Notify-only by design**: it never logs in, never touches the reservation form, and never works around the site's bot protection.
-Node ≥ 22, TypeScript, zero framework. See `docs/adr/` for the reasoning.
+Runs as Vercel Functions (Discord Interactions Endpoint + cron) with Supabase for state, or as a plain Node CLI with a webhook. Node ≥ 22, TypeScript. See `docs/adr/` for the reasoning.
 
 ## License
 

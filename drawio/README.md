@@ -1,6 +1,6 @@
 # drawio/
 
-`dlt-plate-watcher.drawio` — ไฟล์เดียว 8 หน้า เปิดด้วย draw.io desktop หรือ https://app.diagrams.net
+`dlt-plate-watcher.drawio` — ไฟล์เดียว 9 หน้า เปิดด้วย draw.io desktop หรือ https://app.diagrams.net
 
 | หน้า | เรื่อง |
 |---|---|
@@ -8,8 +8,8 @@
 | 02 คำสั่ง check | flowchart ของ `runCheck` |
 | 03 planNotifications | ตัดสินใจว่าวันนี้แจ้งอะไร + รูปแบบ key |
 | 04 Parser PDF | PDF → ScheduleEntry |
-| 05 watch loop และเวลา | loop รันค้าง + ไทม์ไลน์วันเปิดจอง |
-| 06 การ deploy | 3 วิธีรัน |
+| 05 watch loop และเวลา | loop รันค้าง (ก่อน Phase 6 — ตอนนี้เป็น cron บน Vercel) + ไทม์ไลน์วันเปิดจอง |
+| 06 การ deploy | 3 วิธีรัน (ยังไม่มีวิธี D = Vercel + Supabase · ADR-0005) |
 | 07 Roadmap | phase ที่ผ่านมาและถัดไป |
 | 08 Discord bot และปุ่ม | โหมด bot ปุ่ม 4 ปุ่มทำอะไร และขอบเขต |
 | **99 raw** | **พื้นที่ของผู้ใช้** วาด/ร่างอะไรก็ได้ แล้วบอก Claude ให้มาดู |
