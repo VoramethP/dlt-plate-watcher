@@ -98,6 +98,25 @@
 
 **ระวัง:** ADR-0004 เคยปัด Interactions Endpoint ไว้ ต้องเขียน ADR-0005 กลับคำอย่างมีเหตุผล ไม่ลบของเก่า
 
+## [2026-09-20] Phase 6 — Vercel Interactions Endpoint + Supabase (โค้ดเสร็จ ยังไม่ deploy)
+
+**ทำอะไร:** grill 3 รอบสั้น ๆ → ตกลง: ตารางแยกตามชนิด (A) · config อื่นใน env `WATCH_CONFIG_JSON` · ใครก็กดปุ่มได้ · ตัด gateway เก็บ CLI (B) · ผู้ใช้ขอ "เก็บ transaction" → ตาราง `events` ทุกเหตุการณ์ เก็บตลอด · ถามว่าควรมีปุ่ม 📜 ไหม → มี เพราะ Supabase dashboard เปิดได้แค่เจ้าของโปรเจกต์ แต่ wishlist เป็นของทั้งช่อง
+เขียน ADR-0005 (กลับคำ ADR-0004 ในบริบทใหม่) · `src/store.ts` adapter ไฟล์/Supabase · `src/db/` (Drizzle schema + store ที่ modal 1 ครั้ง = 1 transaction) · `src/notify/rest.ts` (Discord REST) · `src/notify/interactions.ts` (route → `{response, work}`) · `src/notify/verify.ts` (Ed25519 ด้วย node:crypto) · `api/interactions.ts` `api/cron/check.ts` `api/cron/ping.ts` · `vercel.json` (sin1 · cron 08:00 · includeFiles numerology.json · maxDuration 60) · `scripts/migrate.ts` `scripts/register-commands.ts` · ลบ `bot.ts` `discord.js` `watch` `daily-check.yml` · เทส 68 → 81 (store · verify · routing ด้วย fake DiscordRest) · smoke: PING ลงลายเซ็นจริง → 200 PONG, ลายเซ็นปลอม → 401, cron ผิด secret → 401 · `check --dry-run` กับ Drive จริงยังผ่าน
+
+**ทำไมตัดสินใจแบบนี้:**
+- `notified` แยกจาก `events` และ key เป็น pk → กันแจ้งซ้ำระดับฐานข้อมูลเมื่อ cron ชนคนกด 🔄 · `events` เป็นสำเนาเพื่ออ่าน
+- ตัด gateway ทั้งที่ handoff แนะให้เก็บ เพราะเห็นโค้ดแล้วว่าคือ route ปุ่มชุดเดียวกัน 2 implementation — หนี้ที่จ่ายทุกครั้งที่เพิ่มปุ่ม · CLI `check` + webhook ยังเป็น fallback ที่ใช้ตรรกะเดียวกัน
+- `Env.schedule` override แทน `fetcher` เพราะเทส routing ต้องไม่แตะเครือข่าย (เคยพลาดยิง Drive จริงแล้วได้ 404 ในเทส)
+- `cronSecret` ว่าง = ปฏิเสธทุก request ไม่ใช่ล้มตอน createApp — ปุ่มต้องทำงานแม้ยังไม่ตั้ง cron
+- panel ไม่มี "ออนไลน์มา X นาที" อีก (serverless) → แสดง "เช็คล่าสุด" จาก `meta.lastCheckAt`
+- ตัด `statusEmbed`/`cmd_status` ที่ไม่มีปุ่มเรียกมาตั้งแต่รวมเป็น landing panel
+
+**ทางเลือกที่ไม่ได้เลือก:** state JSON ก้อนเดียว (lost update) · ยุบ notified เข้า events (กันซ้ำด้วย jsonb query) · `discord-interactions`/`discord-api-types` package (Node มี Ed25519 แล้ว · type ที่ใช้มี 6 field) · Railway/Fly · Vercel Pro
+
+**ยังไม่ได้ทำ/ทดสอบ:** ยังไม่ deploy จริง — ไม่รู้ว่า Vercel build `api/*.ts` (ESM + NodeNext import `.js`) ผ่านไหม · ยังไม่ได้ migrate ขึ้น Supabase จริง · ยังไม่เคยเห็น `waitUntil` ทำงานกับ deferred interaction จริง · drawio หน้า 06 ยังไม่มีวิธี D · `watch` เก่าบน Mac (pid 8525) ยังรันอยู่จนกว่า Vercel จะขึ้น
+
+**ระวัง:** drizzle-kit 0.31.10 ดึง esbuild เก่ามา 2 เวอร์ชัน (npm audit 4 moderate, dev-only) · `.state/events.jsonl` ใหม่ในโหมดไฟล์ (อยู่ใน .gitignore แล้ว)
+
 ---
 
 ## งานถัดไป

@@ -1,45 +1,47 @@
 # HANDOFF
 
 > **เขียนทับทั้งไฟล์ทุกครั้งที่ส่งมอบ** ไม่ต่อท้าย — ไฟล์นี้คือ "ไม้ที่กำลังส่ง" ไม่ใช่ประวัติ
-> ส่งมอบเมื่อ: 2026-09-20 · เหตุผล: ผู้ใช้ตัดสินใจเริ่ม **Phase 6 — ย้าย bot ขึ้น Vercel + Supabase** เซสชันเดิม context เต็ม (context-checker 🔴) จึงส่งไม้ก่อนลงมือ
+> ส่งมอบเมื่อ: 2026-09-20 · เหตุผล: **Phase 6 โค้ดเสร็จและ commit แล้ว** ที่เหลือคือขั้นตอนในเบราว์เซอร์ที่ผู้ใช้ต้องทำเอง (สร้าง Supabase/Vercel · ใส่ URL ใน Developer Portal) แล้วทดสอบจริง
 
 ## ทำอะไรไปในเซสชันนี้
 
-- v0.3 ปิดงานแล้ว (18 ก.ย.) ทุกปุ่มทดสอบกับ Discord จริง · บทเรียนถูก ingest เข้า brain (`Framework Skills`) เป็น 12 หน้า + skill 3 ตัว (`discord-bot`, `repo-hygiene`, `drawio-from-code`) และ brainpush แล้ว
-- ผู้ใช้ถามว่า "ปิด Mac แล้ว bot ตายไหม" → ใช่ เพราะ `npm run watch` เป็น process บนเครื่อง → ผู้ใช้เลือก **Vercel + Supabase** เพราะอยากได้ของฟรีระยะยาวและยินดีลงแรงอีก 1 วัน
+- grill 3 รอบ → ADR-0005 → เขียน Phase 6 ทั้งก้อน commit `90f2bdb` (รายละเอียดใน `docs/WORKLOG.md` › 2026-09-20)
+- ผู้ใช้เพิ่มความต้องการ: **เก็บ transaction** → ตาราง `events` ทุกเหตุการณ์ (ใครเพิ่ม/ลบเลข · แจ้งอะไร · ใครลบแชต · cron) เก็บตลอด · ปุ่ม 📜 อ่านจากตารางนี้
+- ตัด gateway/discord.js/`watch`/daily-check.yml · CLI `check` + webhook ยังอยู่เป็น fallback
 
 ## สถานะ ณ ตอนส่ง
 
-- **working tree:** สะอาด · push แล้ว · commit ล่าสุด `801855a` (numerology) + handoff นี้
-- **เทส:** 68/68 ผ่าน · typecheck ผ่าน
-- **bot บน Mac:** อาจยังรันอยู่เบื้องหลัง (`pgrep -fl 'src/cli.ts watch'`) หยุดด้วย `pkill -f 'src/cli.ts watch'` เมื่อของใหม่ขึ้นแล้ว
+- **working tree:** สะอาดหลัง commit docs · 81/81 เทสผ่าน · typecheck ผ่าน · `check --dry-run` กับ Drive จริงผ่าน
+- **ยังไม่เคย deploy จริง** — ทุกอย่างทดสอบด้วย fake DiscordRest + store ไฟล์ + smoke ยิง `POST()` ตรง ๆ
+- **`watch` เก่าบน Mac ยังรันอยู่** (`pgrep -fl 'src/cli.ts watch'` → pid 8525) ใช้โค้ดเก่าในหน่วยความจำ ปุ่มยังตอบได้จนกว่าจะปิด · ปิดด้วย `pkill -f 'src/cli.ts watch'` **หลัง** Vercel ขึ้นแล้วเท่านั้น (ไม่งั้น 2 bot ตอบซ้อน หรือไม่มีใครตอบ)
 
-## ค้างอยู่ตรงไหน
+## ค้างอยู่ตรงไหน — เช็คลิสต์ที่ผู้ใช้ต้องทำในเบราว์เซอร์ (ตาม README › โหมด Vercel)
 
-ยังไม่ได้เริ่มเขียนโค้ด Phase 6 เลย — มีแต่การตัดสินใจและข้อเท็จจริงที่หาไว้ (ด้านล่าง)
+| # | ที่ไหน | ทำอะไร | ได้ค่าอะไร |
+|---|---|---|---|
+| 1 | Discord Developer Portal › General Information | คัดลอก Application ID, Public Key | `DISCORD_APP_ID` `DISCORD_PUBLIC_KEY` |
+| 2 | Supabase › New project (Singapore) › Settings › Database | Transaction pooler URI (6543) + Session pooler (5432) | `DATABASE_URL` `DIRECT_DATABASE_URL` |
+| 3 | เครื่อง: ใส่ 2 ค่าใน `.env` | `npm run db:migrate` | ตาราง 4 ตารางบน Supabase |
+| 4 | Vercel › Add New Project › import repo · Settings › Environment Variables | ใส่ `DISCORD_BOT_TOKEN` `DISCORD_CHANNEL_ID` `DISCORD_PUBLIC_KEY` `DATABASE_URL` `CRON_SECRET` (`openssl rand -hex 32`) `WATCH_CONFIG_JSON` (ไฟล์ทั้งก้อนบรรทัดเดียว) | URL `https://<app>.vercel.app` |
+| 5 | Developer Portal › General Information › Interactions Endpoint URL | `https://<app>.vercel.app/api/interactions` → Save | ต้องขึ้นว่าบันทึกสำเร็จ (= PING/PONG ผ่าน) |
+| 6 | เครื่อง (`.env` มี `DISCORD_BOT_TOKEN` + `DISCORD_APP_ID` + `DISCORD_GUILD_ID`) | `npm run register` | `/panel` ใช้ได้ |
+| 7 | cron-job.org | job GET `https://<app>.vercel.app/api/cron/ping` · 09:50 Asia/Bangkok ทุกวัน · header `Authorization: Bearer <CRON_SECRET>` | ปิง 09:50 |
 
-## ทำต่อยังไง — Phase 6 (เปิดแชตใหม่ในโฟลเดอร์นี้)
+## ทำต่อยังไง (เซสชันถัดไป)
 
-1. `/grill-me` สั้น ๆ 1 รอบเรื่อง: จะเก็บ wishlist/state ใน Supabase ตารางอะไร · ใครกดปุ่มได้บ้าง · ยังต้องมีโหมดรันบนเครื่องไหม (แนะนำ: คงไว้เป็น fallback)
-2. เขียน **ADR-0005** "Vercel Interactions Endpoint + Supabase แทน gateway process" อ้างข้อเท็จจริงด้านล่าง
-3. โครงที่แนะนำ (คง `actions.ts`, `discord.ts` embed builders, `match.ts`, `numerology.ts`, parser ไว้ทั้งหมด):
-   - `api/interactions.ts` — ตรวจลายเซ็น Ed25519 (`X-Signature-Ed25519`, `X-Signature-Timestamp`) → PING→PONG → route ตาม `custom_id`/modal/slash เหมือน `bot.ts` เดิม · ตอบใน 3 วิ (deferred + follow-up ผ่าน REST เมื่อต้องโหลด PDF)
-   - `api/cron/check.ts` (08:00) และ `api/cron/ping.ts` (09:50) — ป้องกันด้วย `CRON_SECRET`
-   - ส่งข้อความ/ลบแผง/โพสต์แผงผ่าน **Discord REST** ด้วย bot token (ไม่ต้อง gateway)
-   - `src/state.ts` → adapter: ไฟล์ (โหมด local) หรือ **Supabase** (โหมด Vercel): ตาราง `notified(key, at)`, `wishlist(number, owner, kind add|exclude)`, `meta(k, v)` — ใช้ Drizzle ตามสแต็กกลาง
-   - `watch.config.json` ส่วน patterns/vehicleType อยู่ใน env หรือตาราง `meta` · numerology.json bundle ไปกับโค้ด
-4. ตั้งค่า: Discord Developer Portal → **Interactions Endpoint URL** = `https://<app>.vercel.app/api/interactions` (ต้องผ่าน PING ตอนบันทึก) · Vercel env: `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, `DISCORD_CHANNEL_ID`, `SUPABASE_*`, `CRON_SECRET`
-5. cron 09:50 ใช้ **cron-job.org** (ฟรี ตรงนาที) ยิง `api/cron/ping` · cron 08:00 ใช้ Vercel Cron ได้ (Hobby คลาด ≤59 นาที ยังทันก่อน 10:00)
-6. ทดสอบจริง: กดทุกปุ่มบน Discord · `/panel` · modal 3 ช่อง · แผง sticky หลัง cron
-7. อัปเดต README (โหมด Vercel), UI-GUIDE, drawio หน้า 06 (เพิ่มวิธี D) · ปิด watch บน Mac
+1. ถ้า **Vercel build พัง**: จุดเสี่ยงที่รู้คือ `api/*.ts` import `../src/*.js` แบบ ESM + NodeNext — ดู log ก่อน · ทางแก้สำรอง: ให้ `api/` import จาก `dist/` หลัง `npm run build` (ต้องตั้ง Build Command = `npm run build`) หรือเปลี่ยน import ใน `api/` เป็นไม่มี `.js`
+2. ถ้า **Interactions Endpoint URL บันทึกไม่ผ่าน**: Discord ยิง PING + request ลายเซ็นปลอมมาทดสอบ · เช็ค `DISCORD_PUBLIC_KEY` ตรงกับ app เดียวกับ token · ดู Vercel › Logs ว่า 401 หรือ 500
+3. ทดสอบจริงบน Discord ทีละอย่าง: `/panel` → 🔢 (เพิ่ม/ไม่อยากได้/ลบ) → 📋 → 📜 (ต้องเห็นบรรทัด 🔢 ที่เพิ่งทำ) → 🔄 → 🧹 → ❓ → 📤 ใต้การ์ด · `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>.vercel.app/api/cron/check`
+4. เปิด Supabase › Table Editor › `events` ดูว่าแถวขึ้นครบ (actor_id/actor_name/kind/payload)
+5. ผ่านหมด → `pkill -f 'src/cli.ts watch'` บน Mac · อัปเดต HOTCACHE "ตอนนี้อยู่ตรงไหน" เป็น "รันบน Vercel แล้ว" · WORKLOG บันทึกสิ่งที่พังตอน deploy จริง (ถ้ามี)
+6. จ. 21 ก.ย. 2569 `npm run schedule` → ยืนยัน ADR-0003 file id คงที่ · ถ้าเปลี่ยนทุกสัปดาห์ ย้าย `scheduleFileId` จาก env ไปตาราง `meta` + เพิ่มทางแก้ผ่าน Discord
+7. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (แก้ใน draw.io โดยตรง ไม่มี generator) · export PNG ใหม่
 
 ## สิ่งที่ตกลงกันไว้แต่ยังไม่ได้เขียนลงไฟล์ไหน
 
-- **ข้อเท็จจริงที่เช็คแล้ว 2026-09-19** (เอกสารทางการ): Discord Interactions Endpoint กับ Gateway เป็นทางเลือกที่ใช้แทนกันได้ ไม่ต้องมี WebSocket ค้าง ต้องตรวจ Ed25519 ทุก request และตอบ PING ด้วย PONG · Vercel Cron แผน Hobby: 100 job/project แต่ **รันได้วันละครั้งต่อ job และคลาดได้ ±59 นาที** · Pro ตรงนาที (20 USD/เดือน) → จึงใช้ตัวตั้งเวลาภายนอกสำหรับ 09:50
-- ผู้ใช้เลือก Vercel + Supabase เพราะ "อยากได้ของฟรีระยะยาวและยินดีลงแรงอีกวัน" — ไม่ใช่ Railway/Fly แม้จะไม่ต้องแก้โค้ด
-- ADR-0004 เคยตัดทาง Interactions Endpoint ด้วยเหตุผล "ต้องมี public URL ไม่เหมาะกับรันบนเครื่อง" — ADR-0005 ต้องอ้างและกลับคำในบริบทใหม่ ไม่ใช่ลบทิ้ง
-- กฎเหล็กเดิมทั้งหมดยังอยู่: ไม่จองแทน ไม่ล็อกอิน ThaID ไม่ยิงเว็บขนส่ง ไม่ปลอม UA · เลขศาสตร์ต้องมี source · stage by name ห้าม `git add -A`
-- โปรเจกต์นี้ยังไม่มี `.claude/skills/` ของตัวเอง — skill `discord-bot`, `repo-hygiene`, `stack-setup` อยู่ระดับผู้ใช้แล้ว โหลดได้เลย (ใช้ `stack-setup` เฉพาะส่วน Supabase + Drizzle ไม่ต้อง Nuxt)
+- ผู้ใช้ตอบ "เอาตามที่แนะนำ" ทั้ง 3 รอบ grill — ตัวเลือกที่ไม่ได้เลือกอยู่ใน ADR-0005 ครบแล้ว
+- ผู้ใช้ตั้งใจให้ `events` เป็นของ "เช็คได้เฉย ๆ" — ไม่ต้องทำหน้าเลื่อน/กรอง/สรุปใน Discord · 15 บรรทัดล่าสุดพอ ที่เหลือดูใน Supabase
+- npm audit 4 moderate จาก esbuild เก่าที่ drizzle-kit ดึงมา — dev-only ยังไม่ต้องทำอะไร
 
 ## เกณฑ์ว่าไม้นี้ส่งได้จริง
-เปิดแชตใหม่ อ่านไฟล์นี้ + `HOTCACHE.md` แล้วเริ่มข้อ 1 ได้ทันทีโดยไม่ต้องถามว่าทำไมถึงไป Vercel และติดอะไรบ้าง
+เปิดแชตใหม่ อ่านไฟล์นี้ + `HOTCACHE.md` แล้วพาผู้ใช้ทำเช็คลิสต์ 7 ข้อได้ทันที และรู้ว่าถ้า deploy พังต้องดูตรงไหนก่อน
