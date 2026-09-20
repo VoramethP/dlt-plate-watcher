@@ -34,7 +34,7 @@ deploy ด้วย `npx vercel deploy --prod --yes` (โปรเจกต์ l
 - **Supabase Direct connection (`db.<ref>.supabase.co`) เป็น IPv6 อย่างเดียว** → ใช้ pooler เท่านั้น (6543 transaction / 5432 session)
 - **embed field ต้องนับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด** — 📋 พังบน Discord จริงเพราะเลขศาสตร์ทำให้เกิน 1024 (`fitField`)
 - **error ที่ส่งกลับในช่องห้ามมี path `/webhooks/<app>/<token>`** — เคยรั่ว token ของ interaction (`redactPath`)
-- **`numerology.json` ต้องอยู่ใน bundle** → `vercel.json` › `includeFiles` (readFile path สัมพัทธ์ nft ไม่ตาม)
+- **`numerology.json` ต้องอยู่ใน bundle** → `vercel.json` › `includeFiles`
 - **pooler (Neon -pooler / Supabase 6543) ไม่รองรับ prepared statements** → `postgres(url, { prepare: false })` · migrate ใช้ตัว direct
 - **RLS เปิดโดยไม่มี policy = Data API ปิด** โค้ดต่อตรงด้วย role เจ้าของตารางจึงข้ามได้ — ตั้งใจ
 - **เทสห้ามแตะเครือข่าย** — `Env.schedule` override loader
