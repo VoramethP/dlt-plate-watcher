@@ -11,7 +11,7 @@
 ## สถานะ ณ ตอนส่ง
 
 - **production:** `https://dlt-plate-watcher.vercel.app` (deployment `kwlluid69` · env `DATABASE_URL` = Neon) · env 6 ตัวครบ · Vercel Cron 08:00 ไทย · cron-job.org 09:50 ทดสอบได้ 200
-- **Neon (Singapore):** 4 ตาราง RLS on ไม่มี policy · wishlist 13 แถว · notified 8 key · events 10 แถว (copy จาก Supabase ครบ + cron รอบแรกบน Neon) · **Supabase เก่ายังไม่ได้ลบ — ผู้ใช้ลบเองเพื่อคืน slot**
+- **Neon (Singapore):** 4 ตาราง RLS on ไม่มี policy · wishlist 13 แถว · notified 8 key · events 10 แถว (copy จาก Supabase ครบ + cron รอบแรกบน Neon) · Supabase เก่าลบแล้ว (21 ก.ย.) คืน slot เรียบร้อย
 - **git:** commit ล่าสุด `d4cc43f` push แล้ว · working tree มี HANDOFF/HOTCACHE/WORKLOG ที่กำลัง commit
 - **บนเครื่อง:** `.env` ชี้ Neon ทั้ง `DATABASE_URL` (pooler) และ `DIRECT_DATABASE_URL` · ลบ `OLD_DATABASE_URL` แล้ว · `.vercel/` link แล้ว
 - 83 เทสผ่าน · typecheck ผ่าน
