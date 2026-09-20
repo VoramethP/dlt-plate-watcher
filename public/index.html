@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dlt-plate-watcher</title>
+<!-- Vercel ต้องมี output directory เมื่อไม่ใช่ framework — หน้านี้มีไว้แค่นั้น งานจริงอยู่ที่ /api/* (ADR-0005) -->
+<style>
+  :root { --bg: #fff; --fg: #111; --muted: #666; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; } }
+  body { margin: 0; padding: 48px 16px; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, sans-serif; max-width: 40rem; margin-inline: auto; }
+  p { color: var(--muted); }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+<h1>dlt-plate-watcher</h1>
+<p>bot แจ้งเตือนตารางเปิดจองเลขทะเบียนรถของกรมการขนส่งทางบกผ่าน Discord — <strong>แจ้งเตือนอย่างเดียว ไม่จองแทน</strong></p>
+<p>ไม่มีหน้าเว็บให้ใช้ ทุกอย่างอยู่ใน Discord · โค้ดและวิธีตั้งค่า: <a href="https://github.com/VoramethP/dlt-plate-watcher">github.com/VoramethP/dlt-plate-watcher</a></p>
+</body>
+</html>

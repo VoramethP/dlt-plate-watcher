@@ -5,3 +5,6 @@ dist/
 *.log
 .DS_Store
 watch.config.json
+.vercel/
+# Vercel CLI สร้าง .env.local (OIDC token) — ห้าม ignore แบบ .env* เพราะจะกลบ .env.example ที่ต้อง commit
+.env.local
