@@ -1,7 +1,7 @@
 # HANDOFF
 
 > **เขียนทับทั้งไฟล์ทุกครั้งที่ส่งมอบ** ไม่ต่อท้าย — ไฟล์นี้คือ "ไม้ที่กำลังส่ง" ไม่ใช่ประวัติ
-> ส่งมอบเมื่อ: 2026-09-20 · เหตุผล: **Phase 6 ขึ้น production แล้วและทดสอบบน Discord จริงผ่าน** — ปิดงานก้อนใหญ่ เหลือแค่เฝ้าดู cron รอบแรกพรุ่งนี้
+> ส่งมอบเมื่อ: 2026-09-21 · เหตุผล: **Phase 6 ขึ้น production แล้ว + ย้าย DB ไป Neon แล้ว** — ปิดงานก้อนใหญ่ เหลือแค่เฝ้าดู cron รอบแรก
 
 ## ทำอะไรไปในเซสชันนี้
 
@@ -10,10 +10,10 @@
 
 ## สถานะ ณ ตอนส่ง
 
-- **production:** `https://dlt-plate-watcher.vercel.app` (deployment `apopcqozu` = commit `d4cc43f`) · env 6 ตัวครบ · Vercel Cron 08:00 ไทย · cron-job.org 09:50 ทดสอบได้ 200
-- **Supabase:** 4 ตาราง RLS on ไม่มี policy · wishlist 8 เลข 🚫 2 · notified 8 key · events มีแถวจาก import/cron/ปุ่ม
+- **production:** `https://dlt-plate-watcher.vercel.app` (deployment `kwlluid69` · env `DATABASE_URL` = Neon) · env 6 ตัวครบ · Vercel Cron 08:00 ไทย · cron-job.org 09:50 ทดสอบได้ 200
+- **Neon (Singapore):** 4 ตาราง RLS on ไม่มี policy · wishlist 13 แถว · notified 8 key · events 10 แถว (copy จาก Supabase ครบ + cron รอบแรกบน Neon) · **Supabase เก่ายังไม่ได้ลบ — ผู้ใช้ลบเองเพื่อคืน slot**
 - **git:** commit ล่าสุด `d4cc43f` push แล้ว · working tree มี HANDOFF/HOTCACHE/WORKLOG ที่กำลัง commit
-- **บนเครื่อง:** `.env` ครบทุกค่า (`DIRECT_DATABASE_URL` = session pooler 5432 ต่อได้) · `.vercel/` link แล้ว · `.env.local` ของ Vercel CLI ถูก ignore
+- **บนเครื่อง:** `.env` ชี้ Neon ทั้ง `DATABASE_URL` (pooler) และ `DIRECT_DATABASE_URL` · ลบ `OLD_DATABASE_URL` แล้ว · `.vercel/` link แล้ว
 - 83 เทสผ่าน · typecheck ผ่าน
 
 ## ค้างอยู่ตรงไหน
@@ -22,7 +22,7 @@
 
 ## ทำต่อยังไง
 
-1. **จ. 21 ก.ย. หลัง 08:00–09:00** (Hobby คลาดได้ ±59 นาที): เช็คตาราง `events` มี `cron · check` ใหม่ไหม · ถ้าขนส่งออกตารางใหม่ ช่องต้องได้ 📅 + 🎯 และแผงย้ายมาล่างสุด · ถ้าไม่ยิง ดู Vercel › Settings › Cron Jobs ว่า enabled และ `npx vercel logs dlt-plate-watcher.vercel.app`
+1. **จ. 21 ก.ย. หลัง 08:00–09:00** (Hobby คลาดได้ ±59 นาที): เช็คตาราง `events` ใน Neon มี `cron · check` ใหม่ไหม (ตอนนี้แถวล่าสุดคือ 00:25 ที่ผมยิงทดสอบ) · ถ้าขนส่งออกตารางใหม่ ช่องต้องได้ 📅 + 🎯 และแผงย้ายมาล่างสุด · ถ้าไม่ยิง ดู Vercel › Settings › Cron Jobs ว่า enabled และ `npx vercel logs dlt-plate-watcher.vercel.app`
 2. ยืนยัน ADR-0003: `npm run schedule` เวอร์ชันตารางเปลี่ยนโดย file id เดิมไหม → บันทึกใน WORKLOG · ถ้า id เปลี่ยนทุกสัปดาห์ → ย้าย `scheduleFileId` ไปตาราง `meta` + ปุ่ม/modal แก้จาก Discord (แก้ `WATCH_CONFIG_JSON` บน Vercel ทุกสัปดาห์ไม่ไหว)
 3. ค่อยทำ: `npx vercel git connect` ให้ push แล้ว deploy เอง (ตอนนี้ deploy ด้วย `npx vercel deploy --prod --yes`) · drawio หน้า 06 เพิ่มวิธี D · README ส่วน Vercel เพิ่มทางเลือก CLI
 4. ถ้าเพิ่มปุ่ม: แก้ 4 ที่ — `actions.ts` (BTN/rows) · `interactions.ts` (route) · `guideEmbeds()` · `docs/UI-GUIDE.md` · เทสใน `interactions.test.ts` ด้วย fake DiscordRest · **ทุก embed field ผ่าน `fitField`** ถ้าความยาวไม่แน่นอน

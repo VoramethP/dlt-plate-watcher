@@ -14,7 +14,8 @@
     "register": "node --env-file-if-exists=.env --import tsx scripts/register-commands.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
-    "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-local.ts"
+    "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-local.ts",
+    "db:copy": "node --env-file-if-exists=.env --import tsx scripts/copy-db.ts"
   },
   "keywords": [],
   "author": "",

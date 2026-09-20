@@ -127,6 +127,14 @@
 
 **ยังไม่ได้ทำ:** Vercel ยังไม่ต่อกับ GitHub (deploy ด้วย CLI) · drawio หน้า 06 · ยังไม่เห็น Vercel Cron 08:00 ยิงจริง (พรุ่งนี้)
 
+## [2026-09-21] ย้าย Postgres จาก Supabase ไป Neon (โค้ด 0 บรรทัด)
+
+**ทำอะไร:** ผู้ใช้ถามว่าทำไมไม่ใช้ MongoDB — เหตุผลจริงคือ Supabase ฟรีมีได้ 2 โปรเจกต์ อยากเก็บ slot ให้ Nuxel · เสนอ 2 ทาง (Neon แก้ค่าเดียว / Mongo เขียน db ใหม่) ผู้ใช้เลือก Neon · สร้างโปรเจกต์ Singapore → `db:migrate` → เขียน `scripts/copy-db.ts` (`npm run db:copy`) คัดลอก 4 ตาราง แถวตรงกัน (8/13/3/9) · สลับ `DATABASE_URL` บน Vercel ผ่าน CLI → deploy → cron/check ลง events ของ Neon (แถวที่ 10) Supabase หยุดที่ 9 · เอกสาร README/ADR-0005 หมายเหตุ/.env.example/CLAUDE.md เปลี่ยน "Supabase" → "Postgres (Neon)"
+
+**ทำไม Neon ไม่ใช่ Mongo:** โค้ดใช้แค่ Postgres ผ่าน connection string ไม่มีอะไรที่เป็น Supabase → ย้ายผู้ให้บริการ = เปลี่ยนค่าเดียว · Mongo ต้องรื้อ `src/db/` ที่เพิ่งทดสอบผ่านโดยไม่ได้อะไรเพิ่ม · `Store` interface ยังเปิดทางไว้ถ้ามีเหตุผลใหม่
+
+**ระวัง:** ชื่อ `supabaseStore` ใน `src/db/store.ts` ยังเป็นชื่อเดิม (คือ Postgres store) — ไม่ได้ rename เพื่อไม่ให้ diff รก · events id เป็น identity ALWAYS → copy ต้อง `OVERRIDING SYSTEM VALUE` + `setval` · Neon หลับเมื่อไม่มี connection ตื่น ~0.5 วิ
+
 ---
 
 ## งานถัดไป

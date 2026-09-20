@@ -23,7 +23,7 @@
 | 7 วัน และ 1 วันก่อนหมดเขตจดทะเบียน | เตือนว่าเลขจะหลุดถ้าไม่ไปจด |
 | ตารางที่อ่านได้หมดอายุแล้ว | เตือนให้ไปเช็ค file id ใหม่ (ดูด้านล่าง) |
 
-ทุกอย่างถูกจำไว้ (Supabase หรือ `.state/`) จึงแจ้งแต่ละเรื่องครั้งเดียว รัน cron ถี่แค่ไหนก็ไม่สแปม
+ทุกอย่างถูกจำไว้ (Postgres หรือ `.state/`) จึงแจ้งแต่ละเรื่องครั้งเดียว รัน cron ถี่แค่ไหนก็ไม่สแปม
 
 ## เริ่มใช้ใน 5 นาที
 
@@ -62,8 +62,8 @@ npm run check           # ส่งแจ้งเตือนรายการ
 
 ## โหมด Vercel — มีปุ่ม รันตลอดโดยไม่ต้องเปิดเครื่อง (ฟรี)
 
-ปุ่มใต้ข้อความและ cron 08:00/09:50 รันบน **Vercel Functions + Supabase** ([ADR-0005](docs/adr/0005-vercel-interactions-endpoint-supabase.md)):
-Discord ยิง interaction มาที่ `api/interactions` (ตรวจลายเซ็นทุกครั้ง) · สถานะทั้งหมดอยู่ใน Supabase (ตาราง `notified` · `wishlist` · `meta` · `events`)
+ปุ่มใต้ข้อความและ cron 08:00/09:50 รันบน **Vercel Functions + Postgres (Neon)** ([ADR-0005](docs/adr/0005-vercel-interactions-endpoint-supabase.md)):
+Discord ยิง interaction มาที่ `api/interactions` (ตรวจลายเซ็นทุกครั้ง) · สถานะทั้งหมดอยู่ใน Postgres (ตาราง `notified` · `wishlist` · `meta` · `events`)
 ไม่มี process รันค้างที่ไหน ปิด Mac ได้
 
 ### 1. Discord application
@@ -73,13 +73,17 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 3. แท็บ **OAuth2 → URL Generator** → scopes `bot` + `applications.commands` → permissions **Send Messages · Embed Links · Read Message History · Manage Messages** (+ Pin Messages ถ้าอยากให้ปักหมุดแผง) → เปิดลิงก์เชิญ bot เข้า server
 4. ใน Discord: **User Settings → Advanced → Developer Mode** → คลิกขวาช่อง → **Copy Channel ID** (`DISCORD_CHANNEL_ID`) · คลิกขวา server → Copy Server ID (`DISCORD_GUILD_ID` ทางเลือก ทำให้ `/panel` ใช้ได้ทันที)
 
-### 2. Supabase
+### 2. Postgres (แนะนำ Neon — ฟรี 10 โปรเจกต์)
 
-1. [supabase.com](https://supabase.com) → New project (region **Singapore** ให้ตรงกับ Vercel `sin1`)
-2. **Project Settings → Database → Connection string** → **Transaction pooler** (port 6543) = `DATABASE_URL` · **Session pooler** (5432) = `DIRECT_DATABASE_URL`
-3. บนเครื่อง: ใส่สองค่านี้ใน `.env` แล้ว `npm run db:migrate` — สร้าง 4 ตาราง (RLS เปิด ไม่มี policy = Data API ปิด โค้ดต่อตรงด้วย connection string)
-   ⚠️ อย่าใช้ **Direct connection** (`db.<ref>.supabase.co`) — เป็น IPv6 อย่างเดียว เครื่องส่วนใหญ่ต่อไม่ได้ · ใช้ pooler เท่านั้น
+โค้ดใช้ Postgres ธรรมดาผ่าน connection string — ผู้ให้บริการไหนก็ได้ (Neon · Supabase · Vercel Postgres) ตราบใดที่มี pooler และ region Singapore
+
+1. [neon.tech](https://neon.tech) → New Project → Region **AWS Asia Pacific (Singapore)** → เปิดแค่ Postgres database
+2. กล่อง **Connect** → **Connection pooling เปิด** = `DATABASE_URL` (host มี `-pooler`) · **ปิด** = `DIRECT_DATABASE_URL`
+3. บนเครื่อง: ใส่สองค่านี้ใน `.env` แล้ว `npm run db:migrate` — สร้าง 4 ตาราง (RLS เปิด ไม่มี policy · โค้ดต่อตรงด้วย connection string)
 4. เคยรันบนเครื่องมาก่อน? `npm run db:import` ย้าย wishlist ใน `watch.config.json` และ key ที่เคยแจ้งใน `.state/` ขึ้นไป จะได้ไม่แจ้งซ้ำ
+   · ย้ายจาก Postgres เจ้าอื่น? ใส่ของเก่าใน `OLD_DATABASE_URL` แล้ว `npm run db:copy`
+
+> ใช้ Supabase แทนได้ (Transaction pooler 6543 = `DATABASE_URL` · Session pooler 5432 = `DIRECT_DATABASE_URL`) · ⚠️ อย่าใช้ **Direct connection** `db.<ref>.supabase.co` — IPv6 อย่างเดียว เครื่องส่วนใหญ่ต่อไม่ได้ · แผนฟรีมีได้ 2 โปรเจกต์ จึงย้ายมา Neon (ADR-0005 › หมายเหตุ)
 
 ### 3. Vercel
 
@@ -102,7 +106,7 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 | ดู | 📅 ตาราง · 🎯 เลขในฝัน · 🔄 เช็คตอนนี้ · 📜 ประวัติ (จาก transaction log) · ❓ คู่มือ |
 
 ใต้การ์ดแจ้งเตือนมีแค่ 📤 แชร์เลข (ข้อความล้วนคัดลอกได้) กับ 🌐 เข้าสู่เว็บไซต์ · รายละเอียดทุกปุ่มใน [docs/UI-GUIDE.md](docs/UI-GUIDE.md)
-ทุกเหตุการณ์ (ใครเพิ่ม/ลบเลขไหน · แจ้งอะไรไป · ใครลบแชต) ถูกบันทึกในตาราง `events` บน Supabase เก็บตลอด
+ทุกเหตุการณ์ (ใครเพิ่ม/ลบเลขไหน · แจ้งอะไรไป · ใครลบแชต) ถูกบันทึกในตาราง `events` เก็บตลอด (ดูใน Neon › Tables)
 
 ## ความหมายเลขศาสตร์ (ถ้าอยากได้)
 
@@ -148,7 +152,8 @@ preview             ส่ง match ของรอบนี้ทันที�
 
 npm run register    ลงทะเบียน /panel (ครั้งเดียว)
 npm run db:migrate  สร้าง/อัปเดตตารางบน Supabase จาก drizzle/
-npm run db:import   ย้าย wishlist + notified จากโหมดไฟล์ขึ้น Supabase (ครั้งเดียว)
+npm run db:import   ย้าย wishlist + notified จากโหมดไฟล์ขึ้น Postgres (ครั้งเดียว)
+npm run db:copy     คัดลอก 4 ตารางจาก OLD_DATABASE_URL → DATABASE_URL (ย้ายผู้ให้บริการ)
 ```
 
 ## แผนภาพ
@@ -204,7 +209,7 @@ Watches the weekly plate-number reservation schedule published by Thailand's Dep
 matches it against your wishlist (exact numbers, regex patterns, digit sums) and posts Discord alerts:
 new schedule, matching numbers, day-before and 10-minutes-before reminders, and registration deadlines.
 **Notify-only by design**: it never logs in, never touches the reservation form, and never works around the site's bot protection.
-Runs as Vercel Functions (Discord Interactions Endpoint + cron) with Supabase for state, or as a plain Node CLI with a webhook. Node ≥ 22, TypeScript. See `docs/adr/` for the reasoning.
+Runs as Vercel Functions (Discord Interactions Endpoint + cron) with Postgres (Neon) for state, or as a plain Node CLI with a webhook. Node ≥ 22, TypeScript. See `docs/adr/` for the reasoning.
 
 ## License
 

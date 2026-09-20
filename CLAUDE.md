@@ -80,10 +80,10 @@ npm run typecheck
 npm run schedule                  # พิมพ์ตารางสัปดาห์นี้จาก Drive จริง
 npm run match                     # เลขใน wishlist ที่จะเปิดรอบนี้ ไม่ส่ง Discord
 npm run dev -- check --dry-run    # จำลอง check ครบวงจร พิมพ์ embed แทนส่ง (ไม่แตะ Supabase)
-npm run check                     # ส่ง webhook จริง (อ่าน .env · มี DATABASE_URL → state บน Supabase)
+npm run check                     # ส่ง webhook จริง (อ่าน .env · มี DATABASE_URL → state บน Postgres)
 npm run db:generate               # schema.ts → drizzle/*.sql (ห้าม drizzle-kit push)
-npm run db:migrate                # รัน migration ขึ้น Supabase
-npm run db:import                 # ย้าย wishlist/notified จากไฟล์ขึ้น Supabase (idempotent)
+npm run db:migrate                # รัน migration ขึ้น Postgres (Neon)
+npm run db:import                 # ย้าย wishlist/notified จากไฟล์ขึ้น Postgres (idempotent) · db:copy ย้ายระหว่างผู้ให้บริการ
 npm run register                  # ลงทะเบียน /panel ครั้งเดียว
 ```
 
@@ -96,7 +96,7 @@ npm run register                  # ลงทะเบียน /panel ครั
 1. **แจ้งเตือนอย่างเดียว ไม่จองแทน** — [ADR-0001](docs/adr/0001-notify-only-never-book.md)
    ห้ามเขียนโค้ดที่ล็อกอิน ThaID, กรอกเลขบัตร, ยิงหน้า `?menu=resv_m`, หรือกดยืนยันจอง แม้ผู้ใช้ขอ
 2. **ไม่หลบ WAF / ไม่ปลอม User-Agent เป็น browser** — [ADR-0003](docs/adr/0003-manual-file-id-no-ua-spoofing.md)
-   โปรแกรมแตะได้แค่ `drive.google.com` และ `discord.com` (+ Supabase ของตัวเอง) · ห้ามยิง `reserve.dlt.go.th` จากโค้ด
+   โปรแกรมแตะได้แค่ `drive.google.com` และ `discord.com` (+ Postgres ของตัวเอง) · ห้ามยิง `reserve.dlt.go.th` จากโค้ด
    รวมถึงห้ามเพิ่มปุ่ม/คำสั่งใน bot ที่ทำสิ่งเหล่านี้
 3. **ห้ามถือข้อมูลส่วนบุคคล** — ไม่มี field สำหรับเลขบัตร ชื่อ เลขตัวถัง ใน config หรือ state
    (ผลจาก ADR-0001 ทำให้ repo เปิด public ได้)
@@ -114,7 +114,7 @@ src/core.ts             loadSchedule → planNotifications → sendFresh → sto
 src/config.ts           Zod schema · parseConfig · resolveConfig (ฐานจาก WATCH_CONFIG_JSON หรือไฟล์ + wishlist จาก store)
 src/store.ts            Store interface (loadState · appendNotified · loadWishlist · saveWishlist · meta · events) · fileStore · createStore
 src/db/schema.ts        Drizzle: notified · wishlist · meta · events (ทุกตาราง enableRLS ไม่มี policy)
-src/db/store.ts         supabaseStore — modal 1 ครั้ง = 1 transaction · db/client.ts postgres-js prepare:false
+src/db/store.ts         supabaseStore (ชื่อเดิม — คือ Postgres store ใช้กับ Neon) — modal 1 ครั้ง = 1 transaction · db/client.ts postgres-js prepare:false
 src/match.ts            wishlist × ช่วงเลข → Match[] พร้อมเหตุผล
 src/numerology.ts       เลขศาสตร์จาก numerology.json (ผลรวมทั้งป้าย + คู่เลข → สาย) · ค่าเริ่มต้น = ความเชื่อทั่วไป ไม่ใช่ข้อเท็จจริง
 src/state.ts            รูปไฟล์ .state/notified.json (notified · lastScheduleVersion · owners · meta)
@@ -127,7 +127,7 @@ src/notify/rest.ts      Discord REST ด้วย bot token: createMessage · ed
 src/notify/interactions.ts  route ปุ่ม/modal//panel → { response, work } · sendPanel · addNumberModal — ไม่มี gateway
 src/notify/verify.ts    verifyDiscordSignature (node:crypto Ed25519)
 src/notify/actions.ts   ตรรกะปุ่มแบบ pure: panelRows · applyWishlistChange · describeEvent · formatHistory
-scripts/                migrate.ts · import-local.ts · register-commands.ts · gen-numerology.py
+scripts/                migrate.ts · import-local.ts · copy-db.ts · register-commands.ts · gen-numerology.py
 drizzle/                migration SQL + meta (commit ด้วย)
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง · interactions.test ใช้ fake DiscordRest
 docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase
