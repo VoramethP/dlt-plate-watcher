@@ -78,6 +78,8 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 1. [supabase.com](https://supabase.com) → New project (region **Singapore** ให้ตรงกับ Vercel `sin1`)
 2. **Project Settings → Database → Connection string** → **Transaction pooler** (port 6543) = `DATABASE_URL` · **Session pooler** (5432) = `DIRECT_DATABASE_URL`
 3. บนเครื่อง: ใส่สองค่านี้ใน `.env` แล้ว `npm run db:migrate` — สร้าง 4 ตาราง (RLS เปิด ไม่มี policy = Data API ปิด โค้ดต่อตรงด้วย connection string)
+   ⚠️ อย่าใช้ **Direct connection** (`db.<ref>.supabase.co`) — เป็น IPv6 อย่างเดียว เครื่องส่วนใหญ่ต่อไม่ได้ · ใช้ pooler เท่านั้น
+4. เคยรันบนเครื่องมาก่อน? `npm run db:import` ย้าย wishlist ใน `watch.config.json` และ key ที่เคยแจ้งใน `.state/` ขึ้นไป จะได้ไม่แจ้งซ้ำ
 
 ### 3. Vercel
 
@@ -146,6 +148,7 @@ preview             ส่ง match ของรอบนี้ทันที�
 
 npm run register    ลงทะเบียน /panel (ครั้งเดียว)
 npm run db:migrate  สร้าง/อัปเดตตารางบน Supabase จาก drizzle/
+npm run db:import   ย้าย wishlist + notified จากโหมดไฟล์ขึ้น Supabase (ครั้งเดียว)
 ```
 
 ## แผนภาพ

@@ -83,6 +83,7 @@ npm run dev -- check --dry-run    # จำลอง check ครบวงจร 
 npm run check                     # ส่ง webhook จริง (อ่าน .env · มี DATABASE_URL → state บน Supabase)
 npm run db:generate               # schema.ts → drizzle/*.sql (ห้าม drizzle-kit push)
 npm run db:migrate                # รัน migration ขึ้น Supabase
+npm run db:import                 # ย้าย wishlist/notified จากไฟล์ขึ้น Supabase (idempotent)
 npm run register                  # ลงทะเบียน /panel ครั้งเดียว
 ```
 
@@ -126,7 +127,7 @@ src/notify/rest.ts      Discord REST ด้วย bot token: createMessage · ed
 src/notify/interactions.ts  route ปุ่ม/modal//panel → { response, work } · sendPanel · addNumberModal — ไม่มี gateway
 src/notify/verify.ts    verifyDiscordSignature (node:crypto Ed25519)
 src/notify/actions.ts   ตรรกะปุ่มแบบ pure: panelRows · applyWishlistChange · describeEvent · formatHistory
-scripts/                migrate.ts · register-commands.ts · gen-numerology.py
+scripts/                migrate.ts · import-local.ts · register-commands.ts · gen-numerology.py
 drizzle/                migration SQL + meta (commit ด้วย)
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง · interactions.test ใช้ fake DiscordRest
 docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase
