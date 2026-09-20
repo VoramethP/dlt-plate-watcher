@@ -149,3 +149,11 @@ describe('Interactions Endpoint', () => {
     expect(d.patched()[0].content).toContain('❌ bot พลาด: Drive ล่ม');
   });
 });
+
+import { redactPath } from '../src/notify/rest.js';
+describe('ข้อความ error ไม่รั่ว token ของ interaction', () => {
+  it('redactPath ปิดส่วน /webhooks/<app>/<token>', () => {
+    expect(redactPath('/webhooks/155050641/aW50ZXJhY3Rpb246MTU1/messages/@original')).toBe('/webhooks/***/messages/@original');
+    expect(redactPath('/channels/1/messages')).toBe('/channels/1/messages');
+  });
+});

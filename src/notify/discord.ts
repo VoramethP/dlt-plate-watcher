@@ -129,6 +129,20 @@ export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config
   };
 }
 
+/**
+ * ต่อบรรทัดจนกว่าจะชนลิมิต 1024 ของ field แล้วปิดด้วย "…และอีก N" — นับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด
+ * (เคยพัง 20 ก.ย.: 8 เลข × บรรทัดเลขศาสตร์ ↳ เกิน 1024 → Discord ตอบ 400 BASE_TYPE_MAX_LENGTH)
+ */
+export function fitField(lines: string[], unit: string, max = 1000): string {
+  const out: string[] = [];
+  let len = 0;
+  for (const line of lines) {
+    if (len + line.length + 1 > max) break;
+    out.push(line); len += line.length + 1;
+  }
+  return out.join('\n') + (out.length < lines.length ? `\n…และอีก ${lines.length - out.length} ${unit}` : '');
+}
+
 /** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */
 export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY): Embed {
   const w = config.wishlist;
@@ -141,7 +155,7 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
   const prefixOf = (n: number) => entries.find((e) => n >= e.from && n <= e.to)?.prefix ?? '';
   const numberLines = w.numbers.map((n) => { const mean = meaningLine(prefixOf(n), n, numerology); return `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}${mean ? `\n   ↳ ${mean}` : ''}`; });
   const fields: Embed['fields'] = [
-    { name: `เลขที่ระบุไว้ (${w.numbers.length})`, value: numberLines.length ? numberLines.slice(0, 30).join('\n') + (numberLines.length > 30 ? `\n…และอีก ${numberLines.length - 30} เลข` : '') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
+    { name: `เลขที่ระบุไว้ (${w.numbers.length})`, value: numberLines.length ? fitField(numberLines, 'เลข') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
   ];
   if (w.patterns.length) fields.push({ name: `รูปแบบเลขที่เฝ้า (${w.patterns.length})`, value: w.patterns.map((p) => `• ${p.name}`).join('\n'), inline: true });
   if (w.digitSums.length) fields.push({ name: 'ผลรวมเลขที่เฝ้า', value: w.digitSums.join(', '), inline: true });

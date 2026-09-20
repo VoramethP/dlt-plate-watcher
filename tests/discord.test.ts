@@ -79,7 +79,8 @@ describe('scheduleEmbed แบบมี config/today', () => {
   });
 });
 
-import { wishlistEmbed } from '../src/notify/discord.js';
+import { fitField, wishlistEmbed } from '../src/notify/discord.js';
+import { loadNumerology } from '../src/numerology.js';
 describe('wishlistEmbed', () => {
   it('แสดงทุกเลข สถานะกับตาราง เจ้าของ และ pattern', () => {
     const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 5555, 9999], patterns: [{ name: 'เลขตอง', regex: 'x' }], digitSums: [9] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
@@ -90,6 +91,15 @@ describe('wishlistEmbed', () => {
     expect(v).toContain('`5555` ⏳ ศ. 18 ก.ย. 8ขฉ (อีก 3 วัน) · 👤 somchai');
     expect(v).toContain('`9999` ⏪');
     expect(JSON.stringify(e)).toContain('เลขตอง');
+  });
+  it('มีเลขศาสตร์ครบทุกเลข field ต้องไม่เกิน 1024 (เคยพัง 20 ก.ย. บน Discord จริง)', async () => {
+    const numerology = await loadNumerology();
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 1234, 5678, 9012, 3456], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 1, to: 9999, registerBy: '2026-10-18' }];
+    const e = wishlistEmbed(config, {}, entries, '2026-09-15', numerology);
+    for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
+    expect(e.fields![0].value).toMatch(/…และอีก \d+ เลข$/);
+    expect(fitField(['a'.repeat(600), 'b'.repeat(600), 'c'], 'เลข')).toBe('a'.repeat(600) + '\n…และอีก 2 เลข');
   });
   it('wishlist ว่างก็ยังแสดงได้', () => {
     const config = { scheduleFileId: 'F', vehicleType: 'van' as const, wishlist: { numbers: [], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };

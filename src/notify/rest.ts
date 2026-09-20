@@ -18,12 +18,15 @@ export function discordRest(token: string, fetcher: Fetcher = fetch): DiscordRes
         headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`Discord ${method} ${path} → HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      // path ของ follow-up มี token ของ interaction — ห้ามโผล่ในข้อความ error ที่ส่งกลับไปในช่อง
+      if (!res.ok) throw new Error(`Discord ${method} ${redactPath(path)} → HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
       if (res.status === 204) return undefined as T;
       return (await res.json()) as T;
     },
   };
 }
+
+export const redactPath = (path: string) => path.replace(/^\/webhooks\/\d+\/[^/]+/, '/webhooks/***');
 
 export interface MessageRef { id: string; author: { id: string }; type: number }
 
