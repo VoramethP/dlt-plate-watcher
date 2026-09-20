@@ -11,7 +11,7 @@ Discord bot เฝ้าตาราง PDF เปิดจองเลขทะ
 
 **Phase 6 ขึ้นจริงแล้ว (20 ก.ย.)** — `https://dlt-plate-watcher.vercel.app` · Interactions Endpoint ตั้งแล้ว · `/panel` + ทุกปุ่มทดสอบบน Discord จริงผ่าน · cron-job.org 09:50 ตั้งแล้ว (200) · Vercel Cron 08:00 · `watch` เก่าบน Mac ปิดแล้ว
 state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. — โควตาฟรี 2 โปรเจกต์ · ADR-0005 › หมายเหตุ) 4 ตาราง `notified` `wishlist` `meta` `events` · CLI `check` + webhook + `.state/` ยังเป็น fallback · 83 เทส
-deploy ด้วย `npx vercel deploy --prod --yes` (โปรเจกต์ link แล้วใน `.vercel/` · env ใส่ผ่าน CLI ครบ 6 ตัว)
+**push `main` = deploy production เอง** (Vercel ต่อ GitHub แล้ว) · env ใส่ผ่าน CLI ครบ 6 ตัว
 
 ## กฎเหล็ก
 

@@ -24,7 +24,7 @@
 
 1. **จ. 21 ก.ย. หลัง 08:00–09:00** (Hobby คลาดได้ ±59 นาที): เช็คตาราง `events` ใน Neon มี `cron · check` ใหม่ไหม (ตอนนี้แถวล่าสุดคือ 00:25 ที่ผมยิงทดสอบ) · ถ้าขนส่งออกตารางใหม่ ช่องต้องได้ 📅 + 🎯 และแผงย้ายมาล่างสุด · ถ้าไม่ยิง ดู Vercel › Settings › Cron Jobs ว่า enabled และ `npx vercel logs dlt-plate-watcher.vercel.app`
 2. ยืนยัน ADR-0003: `npm run schedule` เวอร์ชันตารางเปลี่ยนโดย file id เดิมไหม → บันทึกใน WORKLOG · ถ้า id เปลี่ยนทุกสัปดาห์ → ย้าย `scheduleFileId` ไปตาราง `meta` + ปุ่ม/modal แก้จาก Discord (แก้ `WATCH_CONFIG_JSON` บน Vercel ทุกสัปดาห์ไม่ไหว)
-3. ค่อยทำ: `npx vercel git connect` ให้ push แล้ว deploy เอง (ตอนนี้ deploy ด้วย `npx vercel deploy --prod --yes`) · drawio หน้า 06 เพิ่มวิธี D · README ส่วน Vercel เพิ่มทางเลือก CLI
+3. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D · README ส่วน Vercel เพิ่มทางเลือก CLI · (Vercel ต่อ GitHub อยู่แล้ว — **push `main` = deploy production เอง** ไม่ต้องสั่ง `vercel deploy`)
 4. ถ้าเพิ่มปุ่ม: แก้ 4 ที่ — `actions.ts` (BTN/rows) · `interactions.ts` (route) · `guideEmbeds()` · `docs/UI-GUIDE.md` · เทสใน `interactions.test.ts` ด้วย fake DiscordRest · **ทุก embed field ผ่าน `fitField`** ถ้าความยาวไม่แน่นอน
 
 ## สิ่งที่ตกลงกันไว้แต่ยังไม่ได้เขียนลงไฟล์ไหน
