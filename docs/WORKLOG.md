@@ -117,6 +117,16 @@
 
 **ระวัง:** drizzle-kit 0.31.10 ดึง esbuild เก่ามา 2 เวอร์ชัน (npm audit 4 moderate, dev-only) · `.state/events.jsonl` ใหม่ในโหมดไฟล์ (อยู่ใน .gitignore แล้ว)
 
+## [2026-09-20] Deploy จริง: Supabase + Vercel ขึ้นแล้ว · ปุ่มทำงานบน Discord
+
+**ทำอะไร:** migrate ขึ้น Supabase (ผ่าน pooler 6543) · `npm run db:import` ย้าย 8 เลข + 🚫 2 + 8 key ที่เคยแจ้ง → cron รอบแรกบน Vercel "ส่งใหม่ 0" ยืนยันว่ากันซ้ำได้ · Vercel: `vercel link` → env 6 ตัวผ่าน CLI (pipe จาก .env ไม่เห็นค่า) → `deploy --prod` · ผู้ใช้ตั้ง Interactions Endpoint URL + cron-job.org 09:50 เอง · `/panel` และทุกปุ่มผ่านบน Discord จริง ยกเว้น 📋 → แก้ `fitField` (นับตัวอักษร) + `redactPath` (error รั่ว token) → deploy ใหม่ · ปิด `watch` เก่าบน Mac
+
+**ติดอะไรบ้าง:** ผู้ใช้วาง Project URL (https) แทน connection string และ Direct connection (IPv6 only → ENOTFOUND) — README เตือนแล้ว · `??` กับค่าว่างใน .env · Vercel ต้องมี `public/` · `vercel link` เขียน `.env*` ลง .gitignore · scratchpad ไม่มี node_modules → สคริปต์ที่ต้องใช้ package ต้องอยู่ใน repo (`scripts/import-local.ts`)
+
+**ทำไม:** เอาข้อมูลเดิมขึ้นก่อนเปิดใช้ เพราะไม่งั้น cron รอบแรกจะแจ้งซ้ำทุกอย่างที่ bot เก่าเคยส่ง · env ผ่าน CLI แทนหน้าเว็บ เพื่อไม่ต้องคัดลอกความลับผ่านแชต
+
+**ยังไม่ได้ทำ:** Vercel ยังไม่ต่อกับ GitHub (deploy ด้วย CLI) · drawio หน้า 06 · ยังไม่เห็น Vercel Cron 08:00 ยิงจริง (พรุ่งนี้)
+
 ---
 
 ## งานถัดไป
