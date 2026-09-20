@@ -1,7 +1,7 @@
 # 🔥 HOTCACHE
 
 > อ่านไฟล์นี้หลัง `HANDOFF.md` · **ห้ามเกิน 500 คำ** (`wc -w`)
-> Updated: **2026-09-18**
+> Updated: **2026-09-20**
 
 ## โปรเจกต์นี้คืออะไร
 
@@ -9,7 +9,7 @@ Discord bot (Node 22 + TS + discord.js) เฝ้าตาราง PDF เป�
 
 ## ตอนนี้อยู่ตรงไหน
 
-**v0.3 ปิดงานแล้ว (ผู้ใช้ประกาศ 18 ก.ย.)** ทุกฟีเจอร์ทดสอบกับ Discord จริง · เทส 68 · เหลือแค่รอยืนยัน file id คงที่วันจันทร์ 21 ก.ย. และผู้ใช้เปิดสิทธิ์ Pin Messages เอง
+**v0.3 เสร็จ (18 ก.ย.) → กำลังจะเริ่ม Phase 6: ย้ายขึ้น Vercel (Interactions Endpoint) + Supabase** เพราะ bot ตอนนี้ตายเมื่อปิด Mac · ยังไม่มีโค้ด Phase 6 · แผนอยู่ใน `HANDOFF.md` · รอยืนยัน file id คงที่ จ. 21 ก.ย.
 
 ## กฎเหล็ก
 
@@ -20,11 +20,13 @@ Discord bot (Node 22 + TS + discord.js) เฝ้าตาราง PDF เป�
 
 ## งานถัดไป
 
-1. จ. 21 ก.ย. 2569 `npm run schedule` → ยืนยัน ADR-0003 (file id คงที่?) แล้วบันทึกผล
-2. ถ้ามีบั๊กจากผู้ใช้: ดู `.state/watch.log` ก่อน · error ของ interaction ตอบกลับผู้กดแล้ว (❌ bot พลาด: …)
+1. **Phase 6** ตามลำดับใน `HANDOFF.md` (grill → ADR-0005 → api/interactions + cron + Supabase state → ตั้งค่า portal/Vercel → ทดสอบจริง)
+2. จ. 21 ก.ย. 2569 `npm run schedule` → ยืนยัน ADR-0003 (file id คงที่?) แล้วบันทึกผล
+3. บั๊กจากผู้ใช้: ดู `.state/watch.log` ก่อน · error ของ interaction ตอบกลับผู้กดแล้ว
 
 ## กับดักที่เคยเจอ
 
+- **Vercel Hobby cron: วันละครั้งต่อ job, คลาด ±59 นาที** → 09:50 ต้องใช้ตัวตั้งเวลาภายนอก (เช็ค docs 19 ก.ย.)
 - **WAF ขนส่ง (F5)** ตอบ "Request Rejected" ทุก UA ที่ไม่ใช่ browser → ผู้ใช้ใส่ file id เอง + stale detection
 - **หน้าขนส่งมี iframe เก่าคอมเมนต์ทิ้ง** → `normalizeDriveFileId` ตัด `<!-- -->` ก่อน
 - **pdf.js แยก "8" กับ "ขจ"** → `ROW_RE` ใช้ `(\d)\s*([ก-ฮ]{1,3})`
