@@ -33,7 +33,7 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 ## กับดักที่เคยเจอ
 
 - **Vercel Hobby cron: วันละครั้งต่อ job, คลาด ±59 นาที** → เวลาที่ต้องตรงอยู่บน cron-job.org ทั้งหมด (09:30 daily · 09:50 ping · 23:50 daily-clear)
-- **Vercel ไม่มี framework ต้องมี `public/`** ไม่งั้น "No Output Directory" · `vercel link` เขียน `.env*` ลง .gitignore (กลบ .env.example) → แก้เป็น `.env.local`
+- **Vercel ต้องมี `public/`** ไม่งั้น "No Output Directory" · `vercel link` เขียน `.env*` ลง .gitignore → แก้เป็น `.env.local`
 - **embed field ต้องนับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด** — 📋 พังบน Discord จริงเพราะเลขศาสตร์ทำให้เกิน 1024 (`fitField`)
 - **ข้อความเดียว: ทุก embed รวมกันห้ามเกิน 6000 ตัวอักษร** (ไม่ใช่แค่ 10 ใบ) — ตารางรอบใหม่ 5 วัน = 6230 → 400 · แบ่งด้วย `chunkEmbeds` · ephemeral ที่ยาวต่อด้วย `createFollowup`
 - **error ที่ส่งกลับในช่องห้ามมี path `/webhooks/<app>/<token>`** — เคยรั่ว token ของ interaction (`redactPath`)
