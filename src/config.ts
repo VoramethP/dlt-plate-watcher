@@ -28,6 +28,8 @@ export const ConfigSchema = z.object({
     digitSums: z.array(z.number().int().min(1).max(36)).default([]),
     /** เลขที่ไม่อยากได้ — ตัดออกจากทุกเงื่อนไขข้างบน (เช่น จองได้แล้ว หรือ pattern จับได้แต่ไม่ชอบ) */
     exclude: z.array(z.number().int().min(1).max(9999)).default([]),
+    /** เลขที่ "เจอเองว่าจองไม่ได้" — ขนส่งกันไว้ประมูลนอกเหนือจาก auction-rules.json · ยังแสดงอยู่ แต่อยู่ในช่อง 🔨 (ADR-0006) */
+    auction: z.array(z.number().int().min(1).max(9999)).default([]),
   }),
   reminders: z.object({
     daysBeforeOpen: z.array(z.number().int().min(0)).default([1]),
@@ -68,5 +70,5 @@ export async function resolveConfig(opts: { configPath: string; store: Store; en
   const envJson = (opts.env ?? process.env).WATCH_CONFIG_JSON;
   const base = envJson ? parseConfig(envJson, 'WATCH_CONFIG_JSON') : await loadConfig(opts.configPath);
   const rows = await opts.store.loadWishlist();
-  return { ...base, wishlist: { ...base.wishlist, numbers: rows.numbers, exclude: rows.exclude } };
+  return { ...base, wishlist: { ...base.wishlist, numbers: rows.numbers, exclude: rows.exclude, auction: rows.auction } };
 }

@@ -1,4 +1,5 @@
 // งานหลักที่ CLI และ cron เรียกใช้ — แยกจาก cli.ts เพื่อให้เทสได้โดยไม่ต้อง spawn process
+import { auctionIndex, loadAuctionRules, type AuctionIndex } from './auction.js';
 import type { Config } from './config.js';
 import { matchSchedule, type Match } from './match.js';
 import { chunkEmbeds, matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
@@ -46,7 +47,7 @@ export function isStale(schedule: Schedule, today: string): boolean {
 }
 
 /** สิ่งที่ควรแจ้งวันนี้ โดยยังไม่ตัดของที่เคยแจ้งไปแล้ว */
-export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, numerology?: Numerology) {
+export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, numerology?: Numerology, auction?: AuctionIndex) {
   const out: Array<{ key: string; embed: Embed }> = [];
   const stale = isStale(schedule, today);
   const mine = schedule.entries.filter((e) => e.vehicleType === config.vehicleType);
@@ -58,8 +59,10 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
     if (state.lastScheduleVersion && state.lastScheduleVersion !== schedule.version) {
       out.push({ key: `schedule:${schedule.version}`, embed: scheduleEmbed(schedule) });
     }
-    for (const m of matchSchedule(schedule.entries, config)) {
+    for (const m of matchSchedule(schedule.entries, config, auction)) {
       if (daysBetween(today, m.entry.openDate) < 0) continue; // ผ่านไปแล้ว ไม่ต้องแจ้ง
+      // ตรงเงื่อนไขแต่เป็นเลขประมูลล้วน = จองออนไลน์ไม่ได้สักเลข ไม่มีอะไรให้ทำ → ไม่กวน (ยังดูได้จากปุ่ม 🎯/📋) · ADR-0006
+      if (!m.numbers.length) continue;
       out.push({ key: matchKey(m, config.wishlist), embed: matchEmbed(m, numerology) });
     }
     for (const e of mine) {
@@ -105,7 +108,8 @@ export async function runCheck(config: Config, env: Env) {
   const schedule = await scheduleOf(env, config.scheduleFileId);
   const state = await env.store.loadState();
 
-  const planned = planNotifications(schedule, config, state, today, await loadNumerology());
+  const auction = auctionIndex(await loadAuctionRules(), config.wishlist.auction);
+  const planned = planNotifications(schedule, config, state, today, await loadNumerology(), auction);
   const sent = await sendFresh(planned, state, env);
   log(`ตารางเวอร์ชัน ${schedule.version}: ${schedule.entries.length} แถว · ควรแจ้ง ${planned.length} · ส่งใหม่ ${sent.length}`);
 
@@ -129,7 +133,9 @@ export async function runOpeningPing(config: Config, env: Env) {
   const today = todayBangkok(env.now);
   const schedule = await scheduleOf(env, config.scheduleFileId);
   const state = await env.store.loadState();
-  const todays = matchSchedule(schedule.entries, config).filter((m) => m.entry.openDate === today);
+  const auction = auctionIndex(await loadAuctionRules(), config.wishlist.auction);
+  // เลขประมูลไม่ต้องปิง — 10 นาทีก่อนเปิดจองก็กดไม่ได้อยู่ดี
+  const todays = matchSchedule(schedule.entries, config, auction).filter((m) => m.entry.openDate === today && m.numbers.length);
   const planned = todays.map((m) => ({ key: `t10:${today}:${m.entry.prefix}`, embed: openingSoonEmbed(m) }));
   const sent = await sendFresh(planned, state, env);
   if (sent.length) {
@@ -144,7 +150,8 @@ export async function runOpeningPing(config: Config, env: Env) {
 export async function runPreview(config: Config, env: Env) {
   const schedule = await scheduleOf(env, config.scheduleFileId);
   const numerology = await loadNumerology();
-  const embeds = matchSchedule(schedule.entries, config).map((m) => matchEmbed(m, numerology));
+  const auction = auctionIndex(await loadAuctionRules(), config.wishlist.auction);
+  const embeds = matchSchedule(schedule.entries, config, auction).map((m) => matchEmbed(m, numerology));
   if (!embeds.length) return { sent: 0 };
   if (!env.notifier) {
     (env.log ?? console.log)(JSON.stringify(embeds, null, 2));

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../src/config.js';
 import { BUTTON, COMMAND, MODAL } from '../src/notify/actions.js';
+import { EMPTY_AUCTION } from '../src/auction.js';
 import { EMPTY_NUMEROLOGY } from '../src/numerology.js';
 import { handleInteraction, InteractionType, ResponseType, sendPanel, type Interaction, type InteractionDeps } from '../src/notify/interactions.js';
 import type { DiscordRest } from '../src/notify/rest.js';
@@ -48,6 +49,8 @@ async function deps(): Promise<InteractionDeps & { calls: ReturnType<typeof fake
     config: () => resolveConfig({ configPath, store, env: {} }),
     schedule: async () => schedule,
     numerology: async () => EMPTY_NUMEROLOGY,
+    auction: async () => EMPTY_AUCTION, // เทสส่วนใหญ่ไม่เกี่ยวกับเลขประมูล — เทสที่เกี่ยวโหลดกฎจริงเอง
+
     now: new Date('2026-09-15T03:00:00Z'),
   };
 }
@@ -83,15 +86,16 @@ describe('Interactions Endpoint', () => {
     expect(JSON.stringify(share.response)).toContain('ตอง (1): 5555');
   });
 
-  it('🔢 เปิด modal 3 ช่อง · ส่ง modal → แก้ wishlist ผ่าน store + ลง events + ตอบรายเลข', async () => {
+  it('🔢 เปิด modal 4 ช่อง · ส่ง modal → แก้ wishlist ผ่าน store + ลง events + ตอบรายเลข', async () => {
     const d = await deps();
     const modal = await handleInteraction(button(BUTTON.addNumber), d);
     expect(modal.response).toMatchObject({ type: ResponseType.MODAL, data: { custom_id: MODAL.addNumber } });
-    expect((modal.response.data as { components: unknown[] }).components).toHaveLength(3);
+    expect((modal.response.data as { components: unknown[] }).components).toHaveLength(4);
 
     const submit: Interaction = { ...base, type: InteractionType.MODAL_SUBMIT, data: { custom_id: MODAL.addNumber, components: [
       { components: [{ custom_id: MODAL.field, value: '6464, 5555 abc' }] },
       { components: [{ custom_id: MODAL.excludeField, value: '4444' }] },
+      { components: [{ custom_id: MODAL.auctionField, value: '' }] },
       { components: [{ custom_id: MODAL.removeField, value: '' }] },
     ] } };
     await run(d, submit);
@@ -100,7 +104,7 @@ describe('Interactions Endpoint', () => {
     expect(text).toContain('ℹ️ **5555** อยู่ใน wishlist อยู่แล้ว');
     expect(text).toContain('🚫 **4444**');
     expect(text).toContain('❌ "abc"');
-    expect(await d.store.loadWishlist()).toEqual({ numbers: [5555, 6464], exclude: [4444] });
+    expect(await d.store.loadWishlist()).toEqual({ numbers: [5555, 6464], exclude: [4444], auction: [] });
     expect((await d.store.loadState()).owners).toEqual({ 6464: 'Nok' });
     const ev = await d.store.recentEvents(5, HISTORY_KINDS);
     expect(ev[0]).toMatchObject({ kind: 'wishlist', actor: { id: 'u1', name: 'Nok' }, payload: { added: [6464], excluded: [4444] } });
@@ -203,5 +207,36 @@ describe('embed ยาวเกิน 6000 ตัวอักษรต่อข�
     expect(patched[0].components).toHaveLength(0);
     expect(follow.at(-1)!.components).toHaveLength(1);
     expect([...patched, ...follow].flatMap((b) => b.embeds as unknown[])).toHaveLength(5);
+  });
+});
+
+// ช่อง 🔨 ในปุ่ม 🔢 — ผู้ใช้เจอเองว่าเลขไหนกดจองไม่ได้ (กฎในไฟล์ไม่ครอบคลุมทุกกรณี) · ADR-0006
+describe('ทำเครื่องหมายเลขประมูลเอง', () => {
+  const modalSubmit = (fields: Record<string, string>): Interaction => ({
+    ...base, type: InteractionType.MODAL_SUBMIT,
+    data: { custom_id: MODAL.addNumber, components: Object.entries(fields).map(([custom_id, value]) => ({ components: [{ custom_id, value }] })) },
+  });
+
+  it('ใส่เลขในช่อง 🔨 → ย้ายออกจากเลขที่รอจอง ลง events และเอากลับได้ด้วยช่องเพิ่ม', async () => {
+    const d = await deps();
+    await run(d, modalSubmit({ [MODAL.field]: '5456', [MODAL.auctionField]: '', [MODAL.excludeField]: '', [MODAL.removeField]: '' }));
+    await run(d, modalSubmit({ [MODAL.field]: '', [MODAL.auctionField]: '5456', [MODAL.excludeField]: '', [MODAL.removeField]: '' }));
+    expect(d.patched().at(-1)?.content).toContain('🔨 **5456** ทำเครื่องหมายว่าต้องประมูล');
+    expect(await d.store.loadWishlist()).toMatchObject({ numbers: [5555], auction: [5456] });
+    const ev = await d.store.recentEvents(1, HISTORY_KINDS);
+    expect(ev[0]).toMatchObject({ kind: 'wishlist', payload: { markedAuction: [5456] } });
+
+    await run(d, modalSubmit({ [MODAL.field]: '5456', [MODAL.auctionField]: '', [MODAL.excludeField]: '', [MODAL.removeField]: '' }));
+    expect(d.patched().at(-1)?.content).toContain('♻️ **5456** เอาออกจากรายการเลขประมูลแล้ว');
+    expect(await d.store.loadWishlist()).toMatchObject({ auction: [] });
+  });
+
+  it('เพิ่มเลขที่อยู่ในกฎประมูล → บอกกลุ่มทันทีตั้งแต่ตอนเพิ่ม', async () => {
+    const d = await deps();
+    d.auction = async () => (await import('../src/auction.js')).loadAuctionRules();
+    await run(d, modalSubmit({ [MODAL.field]: '8888', [MODAL.auctionField]: '', [MODAL.excludeField]: '', [MODAL.removeField]: '' }));
+    const text = d.patched().at(-1)!.content!;
+    expect(text).toContain('🔨 **8888** เพิ่มแล้ว');
+    expect(text).toContain('กลุ่ม "เลขสี่ตัวเหมือน" ขนส่งกันไว้ประมูล');
   });
 });

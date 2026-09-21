@@ -1,6 +1,7 @@
 // route interaction จาก Discord (ปุ่ม · modal · /panel) — เวอร์ชัน HTTP ของ bot.ts เดิม (ADR-0005)
 // คืน response ที่ต้องตอบภายใน 3 วิ + งานที่ทำต่อหลังตอบ (api/interactions.ts โยนเข้า waitUntil)
 // ไม่มีโค้ดที่แตะ Discord โดยตรงนอกจากผ่าน DiscordRest · ตรรกะ pure อยู่ใน actions.ts
+import { auctionIndex, loadAuctionRules, type AuctionIndex, type AuctionRules } from '../auction.js';
 import type { Config } from '../config.js';
 import { isStale, loadSchedule, runCheck, type Env } from '../core.js';
 import { matchSchedule } from '../match.js';
@@ -50,11 +51,17 @@ export interface InteractionDeps {
   config: () => Promise<Config>;
   schedule?: (fileId: string) => Promise<Schedule>;
   numerology: () => Promise<Numerology>;
+  /** กฎเลขประมูล — ไม่ส่งมา = อ่าน auction-rules.json (ADR-0006) */
+  auction?: () => Promise<AuctionRules>;
   now?: Date;
   log?: (msg: string) => void;
 }
 
 export const PANEL_COMMAND = { name: 'panel', description: 'เรียกแผงควบคุม dlt-plate-watcher มาไว้ล่างสุด' };
+
+/** กฎในไฟล์ + เลขที่ผู้ใช้ทำเครื่องหมายเองผ่านช่อง 🔨 */
+const auctionOf = async (deps: InteractionDeps, c: Config): Promise<AuctionIndex> =>
+  auctionIndex(await (deps.auction ?? loadAuctionRules)(), c.wishlist.auction);
 
 const actorOf = (i: Interaction): Actor => {
   const u = i.member?.user ?? i.user;
@@ -70,10 +77,12 @@ export async function sendPanel(deps: InteractionDeps): Promise<void> {
   const today = todayBangkok(deps.now);
   const s = await (deps.schedule ?? loadSchedule)(c.scheduleFileId).catch(() => null);
   const lastCheckAt = await deps.store.getMeta('lastCheckAt');
+  const auction = await auctionOf(deps, c);
   const embed = panelEmbed({
     config: c, today, version: s?.version, lastCheckAt: lastCheckAt ? new Date(lastCheckAt) : undefined,
     entries: s ? s.entries.filter((e) => e.vehicleType === c.vehicleType) : [],
-    matches: s ? matchSchedule(s.entries, c) : [],
+    matches: s ? matchSchedule(s.entries, c, auction) : [],
+    auctionCount: c.wishlist.numbers.filter((n) => auction.has(n)).length,
     stale: s ? isStale(s, today) : false,
   });
   const oldId = await deps.store.getMeta('panelMessageId');
@@ -130,11 +139,11 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
       case COMMAND.guide: return { response: ephemeral({ embeds: guideEmbeds() }) };
       case COMMAND.schedule: return followUp(async () => {
         const c = await deps.config();
-        return { embeds: [scheduleEmbed(await loadSched(c.scheduleFileId), { title: '📅 ตารางเปิดจองสัปดาห์นี้', config: c, today: todayBangkok(deps.now) })] };
+        return { embeds: [scheduleEmbed(await loadSched(c.scheduleFileId), { title: '📅 ตารางเปิดจองสัปดาห์นี้', config: c, today: todayBangkok(deps.now), auction: await auctionOf(deps, c) })] };
       });
       case COMMAND.match: return followUp(async () => {
         const c = await deps.config();
-        const matches = matchSchedule((await loadSched(c.scheduleFileId)).entries, c);
+        const matches = matchSchedule((await loadSched(c.scheduleFileId)).entries, c, await auctionOf(deps, c));
         const numerology = await deps.numerology();
         return matches.length ? { embeds: matches.map((m) => matchEmbed(m, numerology)) } : '🎯 รอบนี้ไม่มีเลขใน wishlist เปิดจอง · กด 🔢 บนแผงเพื่อเพิ่มเลข';
       });
@@ -149,7 +158,7 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
         const c = await deps.config();
         const state = await deps.store.loadState();
         const entries = (await loadSched(c.scheduleFileId).catch(() => ({ entries: [] as Schedule['entries'] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
-        return { embeds: [wishlistEmbed(c, state.owners ?? {}, entries, todayBangkok(deps.now), await deps.numerology())] };
+        return { embeds: [wishlistEmbed(c, state.owners ?? {}, entries, todayBangkok(deps.now), await deps.numerology(), await auctionOf(deps, c))] };
       });
       case BUTTON.share: {
         // ข้อความล้วนใน code block → desktop มีปุ่มคัดลอกมุมขวาบน · มือถือกดค้างเลือกคัดลอก
@@ -175,26 +184,31 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
       const add = parseNumbers(field(MODAL.field));
       const remove = parseNumbers(field(MODAL.removeField));
       const exclude = parseNumbers(field(MODAL.excludeField));
+      const markAuction = parseNumbers(field(MODAL.auctionField));
       const current = await deps.store.loadWishlist();
-      const change = applyWishlistChange(current, add.valid, remove.valid, exclude.valid);
+      const change = applyWishlistChange(current, add.valid, remove.valid, exclude.valid, markAuction.valid);
       let ownersBefore: Record<string, string> = (await deps.store.loadState()).owners ?? {};
       if (change.changed) {
-        ownersBefore = await deps.store.saveWishlist({ numbers: change.numbers, exclude: change.exclude, added: change.added, excluded: change.excluded, removed: change.removed }, actor);
-        await deps.store.logEvent({ kind: 'wishlist', actor, payload: { added: change.added, removed: change.removed, excluded: change.excluded, unexcluded: change.unexcluded } });
+        ownersBefore = await deps.store.saveWishlist({ numbers: change.numbers, exclude: change.exclude, auction: change.auction, added: change.added, excluded: change.excluded, removed: change.removed, markedAuction: change.markedAuction }, actor);
+        await deps.store.logEvent({ kind: 'wishlist', actor, payload: { added: change.added, removed: change.removed, excluded: change.excluded, unexcluded: change.unexcluded, markedAuction: change.markedAuction } });
       }
       const c = await deps.config();
       const entries = (await loadSched(c.scheduleFileId).catch(() => ({ entries: [] as Schedule['entries'] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
       const numerology = await deps.numerology();
       const meanings: Record<number, string> = {};
       for (const n of change.added) { const slot = entries.find((e) => n >= e.from && n <= e.to); meanings[n] = meaningLine(slot?.prefix ?? '', n, numerology); }
-      return wishlistChangeText(change, [...add.invalid, ...exclude.invalid, ...remove.invalid], ownersBefore, actor.name, entries, todayBangkok(deps.now), { patterns: c.wishlist.patterns, digitSums: c.wishlist.digitSums }, meanings);
+      // เลขที่เพิ่งเพิ่มแล้วเป็นเลขประมูลตามกฎ → บอกทันทีในคำตอบ ไม่ต้องรอให้ไปเจอเองตอน 10:00
+      const index = await auctionOf(deps, { ...c, wishlist: { ...c.wishlist, auction: change.auction } });
+      const auctions: Record<number, string> = {};
+      for (const n of change.added) { const g = index.get(n); if (g) auctions[n] = g; }
+      return wishlistChangeText(change, [...add.invalid, ...exclude.invalid, ...remove.invalid, ...markAuction.invalid], ownersBefore, actor.name, entries, todayBangkok(deps.now), { patterns: c.wishlist.patterns, digitSums: c.wishlist.digitSums }, meanings, auctions);
     });
   }
 
   return { response: ephemeral({ content: 'ไม่รู้จัก interaction นี้' }) };
 }
 
-/** modal 3 ช่อง — ข้อความอยู่ใน MODAL_TEXT (มีเทสลิมิต 45/100 ตัวอักษร) · type 4 = text input · style 2 = paragraph */
+/** modal 4 ช่อง (Discord รับสูงสุด 5) — ข้อความอยู่ใน MODAL_TEXT (มีเทสลิมิต 45/100 ตัวอักษร) · type 4 = text input · style 2 = paragraph */
 export function addNumberModal() {
   const input = (custom_id: string, label: string, placeholder: string) => ({
     type: 1, components: [{ type: 4, custom_id, label, style: 2, placeholder, max_length: 300, required: false }],
@@ -205,6 +219,7 @@ export function addNumberModal() {
     components: [
       input(MODAL.field, MODAL_TEXT.addLabel, MODAL_TEXT.addPlaceholder),
       input(MODAL.excludeField, MODAL_TEXT.excludeLabel, MODAL_TEXT.excludePlaceholder),
+      input(MODAL.auctionField, MODAL_TEXT.auctionLabel, MODAL_TEXT.auctionPlaceholder),
       input(MODAL.removeField, MODAL_TEXT.removeLabel, MODAL_TEXT.removePlaceholder),
     ],
   };

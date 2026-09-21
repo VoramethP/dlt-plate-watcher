@@ -70,13 +70,13 @@ describe('parseNumbers', () => {
 });
 
 describe('applyWishlistChange (pure — store เป็นคนเขียน)', () => {
-  const start = { numbers: [9999], exclude: [] };
+  const start = { numbers: [9999], exclude: [], auction: [] };
   it('เพิ่มหลายเลข เรียงลำดับ และรายงานตัวที่ซ้ำ', () => {
     const c = applyWishlistChange(start, [5555, 9999, 15], []);
     expect(c).toMatchObject({ added: [5555, 15], already: [9999], removed: [], notFound: [], total: 3, numbers: [15, 5555, 9999], exclude: [], changed: true });
   });
   it('ลบเลขที่กรอกผิดได้ และบอกถ้าไม่มีอยู่แล้ว', () => {
-    const c = applyWishlistChange({ numbers: [15, 9999], exclude: [] }, [], [15, 42]);
+    const c = applyWishlistChange({ numbers: [15, 9999], exclude: [], auction: [] }, [], [15, 42]);
     expect(c).toMatchObject({ removed: [15], notFound: [42], total: 1, numbers: [9999] });
   });
   it('ไม่อยากได้: ย้ายออกจากอยากได้ · ลบได้ · เพิ่มกลับได้', () => {
@@ -102,7 +102,7 @@ describe('ข้อความสรุปหลังกรอกเลข', (
     expect(describeNumber(15, entries, '2026-09-15')).toContain('ยังไม่อยู่ในตาราง');
   });
   it('wishlistChangeText มีบรรทัดต่อเลขและเตือนเจ้าของเดิม', () => {
-    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3, numbers: [5555, 6000, 9999], excluded: [4444], alreadyExcluded: [], unexcluded: [], exclude: [4444] }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
+    const text = wishlistChangeText({ added: [5555], already: [6000], removed: [15], notFound: [42], total: 3, numbers: [5555, 6000, 9999], excluded: [4444], alreadyExcluded: [], unexcluded: [], exclude: [4444], markedAuction: [], alreadyAuction: [], unmarkedAuction: [], auction: [] }, ['abc'], { 5555: 'somchai' }, 'nok', entries, '2026-09-15');
     expect(text).toContain('✅ **5555** เพิ่มแล้ว');
     expect(text).toContain('somchai เล็งไว้ก่อนแล้ว');
     expect(text).toContain('🗑️ **15**');
@@ -125,7 +125,7 @@ describe('เตือนเลขที่ pattern ครอบอยู่แ�
   });
   it('wishlistChangeText ใส่คำเตือนเฉพาะเลขที่ถูกครอบ', () => {
     const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }];
-    const text = wishlistChangeText({ added: [5555, 1234], already: [], removed: [], notFound: [], total: 2, numbers: [1234, 5555], excluded: [], alreadyExcluded: [], unexcluded: [], exclude: [] }, [], {}, 'nok', entries, '2026-09-15', rules);
+    const text = wishlistChangeText({ added: [5555, 1234], already: [], removed: [], notFound: [], total: 2, numbers: [1234, 5555], excluded: [], alreadyExcluded: [], unexcluded: [], exclude: [], markedAuction: [], alreadyAuction: [], unmarkedAuction: [], auction: [] }, [], {}, 'nok', entries, '2026-09-15', rules);
     expect(text).toContain('**5555** เพิ่มแล้ว');
     expect(text).toContain('ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "เลขตอง", "คู่สลับ"');
     expect(text.split('💡')).toHaveLength(2); // 1234 ไม่โดนเตือน

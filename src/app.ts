@@ -1,5 +1,6 @@
 // ประกอบของทั้งหมดจาก env สำหรับ api/ บน Vercel — ที่เดียวที่อ่าน process.env ฝั่ง serverless
 // (cli.ts ทำหน้าที่เดียวกันสำหรับบนเครื่อง)
+import { loadAuctionRules } from './auction.js';
 import { resolveConfig } from './config.js';
 import { loadNumerology } from './numerology.js';
 import type { InteractionDeps } from './notify/interactions.js';
@@ -32,6 +33,7 @@ export async function createApp(): Promise<App> {
     cronSecret: process.env.CRON_SECRET ?? '', // ว่าง = cron ปิดอยู่ (ปุ่มยังทำงาน) · cronAuthorized ไม่ยอมรับค่าว่าง
     config: () => resolveConfig({ configPath: 'watch.config.json', store }),
     numerology: () => loadNumerology(),
+    auction: () => loadAuctionRules(),
     close: () => store.close?.() ?? Promise.resolve(),
   };
 }

@@ -1,7 +1,7 @@
 {
   "regions": ["sin1"],
   "functions": {
-    "api/**/*.ts": { "maxDuration": 60, "includeFiles": "numerology.json" }
+    "api/**/*.ts": { "maxDuration": 60, "includeFiles": "{numerology,auction-rules}.json" }
   },
   "crons": [
     { "path": "/api/cron/check", "schedule": "0 1 * * *" }

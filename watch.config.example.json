@@ -3,26 +3,27 @@
   "vehicleType": "car",
   "wishlist": {
     "numbers": [
-      9,
-      99,
-      999,
-      9999,
-      1234
+      1115,
+      2569,
+      5456
     ],
     "patterns": [
       {
-        "name": "เลขตอง (555 / 5555)",
-        "regex": "^(\\d)\\1{2,3}$"
+        "name": "สามตัวท้ายเหมือน (5111)",
+        "regex": "^\\d(\\d)\\1\\1$"
       },
       {
-        "name": "เลขคู่สลับ (5050)",
-        "regex": "^(\\d)(\\d)\\1\\2$"
+        "name": "ลงท้าย 99 (1299)",
+        "regex": "^\\d\\d99$"
       }
     ],
-    "digitSums": [],
+    "digitSums": [
+      9
+    ],
     "exclude": [
-      4444
-    ]
+      1357
+    ],
+    "auction": []
   },
   "reminders": {
     "daysBeforeOpen": [

@@ -37,6 +37,7 @@ export function supabaseStore(databaseUrl: string): Store {
       return {
         numbers: rows.filter((r) => r.kind === 'want').map((r) => r.number),
         exclude: rows.filter((r) => r.kind === 'exclude').map((r) => r.number),
+        auction: rows.filter((r) => r.kind === 'auction').map((r) => r.number),
       };
     },
     async saveWishlist(w, actor) {
@@ -48,6 +49,10 @@ export function supabaseStore(databaseUrl: string): Store {
         for (const n of w.excluded) {
           await tx.insert(wishlist).values({ number: n, kind: 'exclude', ownerId: actor.id, ownerName: actor.name })
             .onConflictDoUpdate({ target: wishlist.number, set: { kind: 'exclude', ownerId: actor.id, ownerName: actor.name, addedAt: sql`now()` } });
+        }
+        for (const n of w.markedAuction) {
+          await tx.insert(wishlist).values({ number: n, kind: 'auction', ownerId: actor.id, ownerName: actor.name })
+            .onConflictDoUpdate({ target: wishlist.number, set: { kind: 'auction', ownerId: actor.id, ownerName: actor.name, addedAt: sql`now()` } });
         }
         for (const n of w.added) {
           await tx.insert(wishlist).values({ number: n, kind: 'want', ownerId: actor.id, ownerName: actor.name })

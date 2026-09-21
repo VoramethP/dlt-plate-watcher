@@ -75,7 +75,7 @@ CLI ตัวเล็ก ๆ ที่โหลด PDF ตารางเปิ
 ## คำสั่งที่ใช้บ่อย
 
 ```bash
-npm test                          # vitest 81 เทส (มี PDF จริงเป็น fixture · ไม่แตะเครือข่าย)
+npm test                          # vitest 99 เทส (มี PDF จริงเป็น fixture · ไม่แตะเครือข่าย)
 npm run typecheck
 npm run schedule                  # พิมพ์ตารางสัปดาห์นี้จาก Drive จริง
 npm run match                     # เลขใน wishlist ที่จะเปิดรอบนี้ ไม่ส่ง Discord
@@ -85,6 +85,7 @@ npm run db:generate               # schema.ts → drizzle/*.sql (ห้าม dr
 npm run db:migrate                # รัน migration ขึ้น Postgres (Neon)
 npm run db:import                 # ย้าย wishlist/notified จากไฟล์ขึ้น Postgres (idempotent) · db:copy ย้ายระหว่างผู้ให้บริการ
 npm run register                  # ลงทะเบียน /panel ครั้งเดียว
+npm run gen:auction               # สร้าง auction-rules.json จากประกาศฯ (ดึง PDF เอง · ไม่ใช่ runtime)
 ```
 
 ปุ่ม + cron 08:00/09:50 รันบน Vercel (`api/`) — ไม่มี `watch` แล้ว (ADR-0005) · ทดสอบ handler ได้โดยเรียก `POST`/`GET` ตรง ๆ ด้วย `Request`
@@ -98,7 +99,9 @@ npm run register                  # ลงทะเบียน /panel ครั
 2. **ไม่หลบ WAF / ไม่ปลอม User-Agent เป็น browser** — [ADR-0003](docs/adr/0003-manual-file-id-no-ua-spoofing.md)
    โปรแกรมแตะได้แค่ `drive.google.com` และ `discord.com` (+ Postgres ของตัวเอง) · ห้ามยิง `reserve.dlt.go.th` จากโค้ด
    รวมถึงห้ามเพิ่มปุ่ม/คำสั่งใน bot ที่ทำสิ่งเหล่านี้
-3. **ห้ามถือข้อมูลส่วนบุคคล** — ไม่มี field สำหรับเลขบัตร ชื่อ เลขตัวถัง ใน config หรือ state
+3. **เลขประมูลต้องมาจากประกาศ ไม่ใช่เดา** — [ADR-0006](docs/adr/0006-auction-numbers-filtered-by-published-rules.md)
+   `auction-rules.json` สร้างด้วย `npm run gen:auction` เท่านั้น (ต้องได้ครบ 301) · ห้ามถามระบบขนส่งว่าเลขว่างไหม
+4. **ห้ามถือข้อมูลส่วนบุคคล** — ไม่มี field สำหรับเลขบัตร ชื่อ เลขตัวถัง ใน config หรือ state
    (ผลจาก ADR-0001 ทำให้ repo เปิด public ได้)
 
 ---
@@ -115,7 +118,8 @@ src/config.ts           Zod schema · parseConfig · resolveConfig (ฐานจ
 src/store.ts            Store interface (loadState · appendNotified · loadWishlist · saveWishlist · meta · events) · fileStore · createStore
 src/db/schema.ts        Drizzle: notified · wishlist · meta · events (ทุกตาราง enableRLS ไม่มี policy)
 src/db/store.ts         supabaseStore (ชื่อเดิม — คือ Postgres store ใช้กับ Neon) — modal 1 ครั้ง = 1 transaction · db/client.ts postgres-js prepare:false
-src/match.ts            wishlist × ช่วงเลข → Match[] พร้อมเหตุผล
+src/match.ts            wishlist × ช่วงเลข → Match[] พร้อมเหตุผล · แยก m.auction (เลขประมูล) ออกจาก m.numbers
+src/auction.ts          เลขที่ขนส่งกันไว้ประมูล 301 เลข/หมวด จาก auction-rules.json + ที่ผู้ใช้ทำเครื่องหมายเอง (ADR-0006)
 src/numerology.ts       เลขศาสตร์จาก numerology.json (ผลรวมทั้งป้าย + คู่เลข → สาย) · ค่าเริ่มต้น = ความเชื่อทั่วไป ไม่ใช่ข้อเท็จจริง
 src/state.ts            รูปไฟล์ .state/notified.json (notified · lastScheduleVersion · owners · meta)
 src/thai-date.ts        พ.ศ./เดือนไทย ↔ ISO · todayBangkok · minutesOfDayBangkok
@@ -130,7 +134,7 @@ src/notify/actions.ts   ตรรกะปุ่มแบบ pure: panelRows · 
 scripts/                migrate.ts · import-local.ts · copy-db.ts · register-commands.ts · gen-numerology.py
 drizzle/                migration SQL + meta (commit ด้วย)
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง · interactions.test ใช้ fake DiscordRest
-docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase
+docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase · 0006 เลขประมูล
 drawio/                 dlt-plate-watcher.drawio (9 หน้า) + png/ export · หน้า 99 raw = พื้นที่ของผู้ใช้
 .github/workflows/      ci.yml (test) — daily-check.yml ถูกลบ (ซ้ำกับ Vercel Cron)
 vercel.json             regions sin1 · cron 08:00 ไทย

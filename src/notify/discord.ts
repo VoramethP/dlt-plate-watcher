@@ -7,6 +7,7 @@ import { daysBetween, formatThaiDate, formatThaiDateShort } from '../thai-date.j
 import { matchSchedule } from '../match.js';
 import type { Config } from '../config.js';
 import { bestSumNumbers, EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
+import { auctionIndex, type AuctionIndex } from '../auction.js';
 
 export interface Embed {
   title: string;
@@ -73,6 +74,17 @@ function numberLines(_prefix: string, numbers: number[], maxChars = 1000): strin
   return rows.join('\n');
 }
 
+/** 🔨 ช่องเลขประมูล — จัดกลุ่มตามชื่อกลุ่มในประกาศ ผู้ใช้จะได้รู้ว่าทำไมเลขนี้จองไม่ได้ (ADR-0006) */
+export function auctionField(auction: Match['auction']): NonNullable<Embed['fields']>[number] {
+  const byGroup = new Map<string, number[]>();
+  for (const a of auction) byGroup.set(a.group, [...(byGroup.get(a.group) ?? []), a.n]);
+  const lines = [...byGroup.entries()].map(([group, ns]) => `**${group}** ${ns.map((n) => `\`${n}\``).join(' · ')}`);
+  return {
+    name: `🔨 ต้องประมูล จองออนไลน์ไม่ได้ (${auction.length})`,
+    value: `${fitField(lines, 'กลุ่ม', 900)}\n-# ขนส่งกันเลขกลุ่มนี้ไว้ประมูลที่ tabienrod.com — ไม่ต้องรอกดตอน 10:00`,
+  };
+}
+
 export function matchEmbed(m: Match, numerology: Numerology = EMPTY_NUMEROLOGY): Embed {
   const e = m.entry;
   const groups = groupByReason(m);
@@ -82,12 +94,14 @@ export function matchEmbed(m: Match, numerology: Numerology = EMPTY_NUMEROLOGY):
     ...(best.length ? [`⭐ **ผลรวมทั้งป้ายระดับดีมาก** (นับหมวด ${e.prefix} ด้วย)\n${best.map(({ n, sum }) => `\`${n}\`=${sum}`).join(' · ')}`] : []),
     ...groupNumbersByMeaning(e.prefix, m.numbers, numerology).map((g) => `${g.group.emoji} **${g.group.name}**\n${numberLines(e.prefix, g.numbers, 300)}`),
   ];
+  const auctionNote = m.auction.length ? ` · 🔨 ต้องประมูลอีก **${m.auction.length}** เลข` : '';
   return {
     title: `🎯 เลขที่เล็งไว้จะเปิดจอง ${formatThaiDate(e.openDate)}`,
-    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · ตรงเงื่อนไข **${m.numbers.length}** เลข · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
-    color: COLOR.match,
+    description: `${VEHICLE_LABEL[e.vehicleType]}\nช่วงที่เปิด: ${rangeLine(e)} · จองออนไลน์ได้ **${m.numbers.length}** เลข${auctionNote} · ทุกเลขด้านล่างคือหมวด **${e.prefix}**`,
+    color: m.numbers.length ? COLOR.match : COLOR.warn,
     fields: [
       ...groups.map((g) => ({ name: `${g.reason} (${g.numbers.length})`, value: numberLines(e.prefix, g.numbers) })),
+      ...(m.auction.length ? [auctionField(m.auction)] : []),
       ...(meanings.length ? [{ name: `🔮 เลขศาสตร์ (รวบรวมจาก ${numerology.sources.length || 'หลาย'} แหล่ง · ดู numerology.json)`, value: meanings.join('\n').slice(0, 1024) }] : []),
       { name: 'เปิดจอง', value: '10:00 – 16:00 น. ที่ reserve.dlt.go.th', inline: true },
       { name: 'ต้องจดทะเบียนภายใน', value: formatThaiDate(e.registerBy, false), inline: true },
@@ -101,11 +115,11 @@ export function matchEmbed(m: Match, numerology: Numerology = EMPTY_NUMEROLOGY):
  * ตารางทั้งสัปดาห์เป็น embed — ใช้ทั้งตอน "ตารางรอบใหม่" และปุ่ม 📅 บนแผง
  * มี config → ทำเครื่องหมาย 🎯 วันที่มีเลขในฝัน และ "← รถของคุณ" · มี today → ไอคอนผ่านแล้ว/วันนี้/กำลังมา
  */
-export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config?: Config; today?: string } = {}): Embed {
+export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config?: Config; today?: string; auction?: AuctionIndex } = {}): Embed {
   const byType = new Map<string, ScheduleEntry[]>();
   for (const e of schedule.entries) byType.set(e.vehicleType, [...(byType.get(e.vehicleType) ?? []), e]);
-  const matchDays = new Map<string, number>();
-  if (opts.config) for (const m of matchSchedule(schedule.entries, opts.config)) matchDays.set(`${m.entry.vehicleType}:${m.entry.openDate}`, m.numbers.length);
+  const matchDays = new Map<string, { hit: number; auction: number }>();
+  if (opts.config) for (const m of matchSchedule(schedule.entries, opts.config, opts.auction)) matchDays.set(`${m.entry.vehicleType}:${m.entry.openDate}`, { hit: m.numbers.length, auction: m.auction.length });
   const dates = schedule.entries.map((e) => e.openDate).sort();
   const first = dates[0]; const last = dates.at(-1)!;
   const status = (e: ScheduleEntry) => {
@@ -115,7 +129,9 @@ export function scheduleEmbed(schedule: Schedule, opts: { title?: string; config
   };
   const row = (e: ScheduleEntry) => {
     const hit = matchDays.get(`${e.vehicleType}:${e.openDate}`);
-    return `${status(e)} **${formatThaiDateShort(e.openDate)}** · ${rangeLine(e)}${hit ? ` 🎯 ${hit} เลข` : ''}`;
+    // 🎯 = จองออนไลน์ได้ · 🔨 = ตรงเงื่อนไขแต่เป็นเลขประมูล (บอกไว้ไม่ให้เข้าใจผิดว่าวันนั้นไม่มีอะไรเลย)
+    const mark = hit ? `${hit.hit ? ` 🎯 ${hit.hit} เลข` : ''}${hit.auction ? ` 🔨 ${hit.auction}` : ''}` : '';
+    return `${status(e)} **${formatThaiDateShort(e.openDate)}** · ${rangeLine(e)}${mark}`;
   };
   const registerDays = daysBetween(schedule.entries[0].openDate, schedule.entries[0].registerBy);
   return {
@@ -187,7 +203,7 @@ export function chunkEmbeds(embeds: Embed[], budget = MESSAGE_CHAR_BUDGET): Embe
 }
 
 /** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */
-export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY): Embed {
+export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY, auction: AuctionIndex = auctionIndex(undefined, config.wishlist.auction ?? [])): Embed {
   const w = config.wishlist;
   const statusOf = (n: number) => {
     const slot = entries.find((e) => n >= e.from && n <= e.to);
@@ -196,10 +212,14 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
     return d < 0 ? `⏪ เปิดไปแล้ว ${formatThaiDateShort(slot.openDate)}` : d === 0 ? `🔥 เปิด**วันนี้** ${slot.prefix}` : `⏳ ${formatThaiDateShort(slot.openDate)} ${slot.prefix} (อีก ${d} วัน)`;
   };
   const prefixOf = (n: number) => entries.find((e) => n >= e.from && n <= e.to)?.prefix ?? '';
-  const numberLines = w.numbers.map((n) => { const mean = meaningLine(prefixOf(n), n, numerology); return `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}${mean ? `\n   ↳ ${mean}` : ''}`; });
+  // เลขประมูลแยกช่องของมันเอง — อยู่ปนกับเลขที่รอเปิดจองแล้วสับสน (ADR-0006)
+  const wanted = w.numbers.filter((n) => !auction.has(n));
+  const locked = w.numbers.filter((n) => auction.has(n));
+  const numberLines = wanted.map((n) => { const mean = meaningLine(prefixOf(n), n, numerology); return `\`${n}\` ${statusOf(n)}${owners[n] ? ` · 👤 ${owners[n]}` : ''}${mean ? `\n   ↳ ${mean}` : ''}`; });
   const fields: Embed['fields'] = [
-    { name: `เลขที่ระบุไว้ (${w.numbers.length})`, value: numberLines.length ? fitField(numberLines, 'เลข') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
+    { name: `✅ จองออนไลน์ได้ (${wanted.length})`, value: numberLines.length ? fitField(numberLines, 'เลข') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
   ];
+  if (locked.length) fields.push(auctionField(locked.map((n) => ({ n, group: auction.get(n)! }))));
   if (w.patterns.length) fields.push({ name: `รูปแบบเลขที่เฝ้า (${w.patterns.length})`, value: w.patterns.map((p) => `• ${p.name}`).join('\n'), inline: true });
   if (w.digitSums.length) fields.push({ name: 'ผลรวมเลขที่เฝ้า', value: w.digitSums.join(', '), inline: true });
   const exclude = w.exclude ?? [];
@@ -235,6 +255,8 @@ export interface PanelInfo {
   entries: ScheduleEntry[];
   matches: Match[];
   today: string;
+  /** จำนวนเลขใน wishlist ที่เป็นเลขประมูล — โชว์ในช่อง 📋 ให้รู้ว่าที่เฝ้าอยู่จองได้จริงกี่เลข */
+  auctionCount?: number;
   /** จาก meta.lastCheckAt — serverless ไม่มี uptime ให้โชว์ (ADR-0005) */
   lastCheckAt?: Date;
   version?: string;
@@ -259,7 +281,7 @@ export function panelEmbed(info: PanelInfo): Embed {
 
   const nums = w.numbers.slice(0, 10).map((n) => `\`${n}\``).join(' ') + (w.numbers.length > 10 ? ` …+${w.numbers.length - 10}` : '');
   const exclude = w.exclude ?? [];
-  const summary = `${w.numbers.length} เลข · ${w.patterns.length} รูปแบบ${w.digitSums.length ? ` · ผลรวม ${w.digitSums.join(',')}` : ''}${exclude.length ? ` · 🚫 ${exclude.length}` : ''}`;
+  const summary = `${w.numbers.length} เลข · ${w.patterns.length} รูปแบบ${w.digitSums.length ? ` · ผลรวม ${w.digitSums.join(',')}` : ''}${exclude.length ? ` · 🚫 ${exclude.length}` : ''}${info.auctionCount ? ` · 🔨 ${info.auctionCount}` : ''}`;
   const week = info.entries.length ? `${formatThaiDateShort(info.entries[0].openDate)} – ${formatThaiDateShort(info.entries.at(-1)!.openDate)}` : '—';
 
   return {
@@ -284,8 +306,8 @@ export function guideEmbeds(): Embed[] {
       description: 'ใต้การ์ดแจ้งเตือนมีแค่ 📤 แชร์เลข กับ 🌐 เข้าสู่เว็บไซต์ · ปุ่มอื่นอยู่ที่ landing panel ล่างสุดของช่อง',
       color: COLOR.match,
       fields: [
-        { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 3 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ไม่อยากได้** ตัดเลขออกจากทุกรูปแบบ (จองได้แล้ว / ไม่ชอบ) · **ลบ** ออกจากรายการ\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม ใครเล็งไว้ก่อน และ 💡 ถ้ารูปแบบครอบอยู่แล้ว\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
-        { name: '📋 เลขที่เฝ้าอยู่', value: 'รายการทุกเลขใน wishlist ตอนนี้ ใครเพิ่ม และจะเปิดจองวันไหน · ใช้ตรวจว่าลืมลบเลขไหนไหม' },
+        { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 4 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ไม่อยากได้** ตัดเลขออกจากทุกรูปแบบ (จองได้แล้ว / ไม่ชอบ) · **🔨 กดจองไม่ได้** เลขที่ขนส่งกันไว้ประมูล · **ลบ** ออกจากรายการ\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม ใครเล็งไว้ก่อน และ 💡 ถ้ารูปแบบครอบอยู่แล้ว\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
+        { name: '📋 เลขที่เฝ้าอยู่', value: 'รายการทุกเลขใน wishlist ตอนนี้ ใครเพิ่ม และจะเปิดจองวันไหน · แยก ✅ จองออนไลน์ได้ กับ 🔨 ต้องประมูล · ใช้ตรวจว่าลืมลบเลขไหนไหม' },
         { name: '📤 แชร์เลข', value: 'ข้อความนี้ในรูปข้อความล้วนใน code block → ชี้เมาส์แล้วกดคัดลอก (มือถือกดค้าง) เอาไปส่งให้ครอบครัวช่วยเลือกได้' },
         { name: '🧹 ลบประวัติแชตเก่า', value: 'ลบข้อความเก่าของ bot ในช่องนี้ (สูงสุด 100 ข้อความล่าสุด) เก็บข้อความที่คุณกดไว้ · ไม่แตะข้อความของคนอื่น' },
         { name: '🌐 เข้าสู่เว็บไซต์', value: 'ลิงก์ไปหน้าจองของกรมขนส่ง reserve.dlt.go.th เปิด 10:00–16:00 น. ตามตาราง ต้องยืนยันตัวตน ThaID ก่อนจอง' },
@@ -297,10 +319,11 @@ export function guideEmbeds(): Embed[] {
       color: COLOR.info,
       fields: [
         { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule` · ตารางเปิดจองทั้ง 3 ประเภทรถ วันไหนหมวดอะไร ช่วงเลขเท่าไหร่ จดภายในวันไหน' },
-        { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน' },
+        { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน · เลขที่ต้องประมูลแยกอยู่ช่อง 🔨 ท้ายการ์ด' },
         { name: '🔄 เช็คตอนนี้', value: '= `npm run check` · ดึงตารางล่าสุดแล้วส่งแจ้งเตือนเฉพาะที่ยังไม่เคยส่ง (ปกติทำเองทุกวัน 08:00)' },
         { name: '📜 ดูประวัติแชต', value: 'เหตุการณ์ล่าสุด 15 รายการ: bot แจ้งอะไร ใครเพิ่ม/ลบเลขไหน ใครลบแชต (ล่าสุดก่อน) เห็นเฉพาะคุณ' },
         { name: '❓ คู่มือ', value: 'ข้อความนี้' },
+        { name: '🔨 ทำไมบางเลขขึ้นว่า "ต้องประมูล"', value: 'ขนส่งกันเลขสวย **301 หมายเลขต่อหมวด** ไว้ประมูลที่ tabienrod.com (เลขตอง เลขเรียง เลขคู่ เลขหลักพัน ฯลฯ) เลขกลุ่มนี้ไม่เข้าระบบจองออนไลน์ตั้งแต่แรก bot จึงแยกไว้ไม่ให้เสียเวลารอกด\nอิงตามประกาศกรมการขนส่งทางบก (ดู `auction-rules.json`) ไม่ได้ถามระบบขนส่ง · เจอเลขอื่นที่กดไม่ได้ ใส่ในช่อง 🔨 ของปุ่ม 🔢 ได้' },
         { name: 'สิ่งที่ bot จะไม่ทำ', value: 'ไม่ล็อกอิน ThaID · ไม่กรอกเลขบัตร · ไม่กดจองแทน · ไม่เช็คกับระบบขนส่งว่าเลขถูกจองแล้วหรือยัง' },
       ],
       footer: { text: FOOTER },

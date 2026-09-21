@@ -13,7 +13,7 @@ export const BUTTON = {
   showHistory: 'show_history',
   clearHistory: 'clear_history',
 } as const;
-export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove', excludeField: 'exclude' } as const;
+export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove', excludeField: 'exclude', auctionField: 'auction' } as const;
 
 /** ข้อความใน modal — Discord จำกัด title/label ≤ 45 ตัวอักษร · placeholder ≤ 100 (เกินแล้ว discord.js โยน "Invalid string length" ก่อนส่ง → ปุ่มขึ้น "ไม่ตอบสนอง") */
 export const MODAL_TEXT = {
@@ -24,6 +24,8 @@ export const MODAL_TEXT = {
   removePlaceholder: 'เช่น 15 · ลบได้ทั้งเลขที่อยากได้และไม่อยากได้',
   excludeLabel: 'ไม่อยากได้ — ตัดออกจากทุกรูปแบบ (ไม่ใส่ก็ได้)',
   excludePlaceholder: 'เช่น 4444 หรือเลขที่จองได้แล้ว',
+  auctionLabel: '🔨 กดจองไม่ได้ ขนส่งกันไว้ประมูล',
+  auctionPlaceholder: 'เลขที่ลองกดแล้วระบบไม่ให้จอง · ใส่กลับด้วยช่องเพิ่ม',
 } as const;
 export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100 } as const;
 
@@ -106,34 +108,51 @@ export interface WishlistChange {
   /** ผลของช่อง "ไม่อยากได้" */
   excluded: number[]; alreadyExcluded: number[]; unexcluded: number[];
   exclude: number[];
+  /** ผลของช่อง 🔨 "จองไม่ได้ ต้องประมูล" (ADR-0006) */
+  markedAuction: number[]; alreadyAuction: number[]; unmarkedAuction: number[];
+  auction: number[];
 }
 
 /**
- * แก้ wishlist ครั้งเดียวจบ (pure — store เป็นคนเขียน) ลำดับ: ลบ (ออกจากทั้งสองรายการ) → ไม่อยากได้ (ย้ายออกจากอยากได้) → เพิ่ม (ย้ายออกจากไม่อยากได้)
- * ใส่เลขเดียวกันหลายช่อง = ช่องเพิ่มชนะ · `changed` = false แปลว่าไม่ต้องเขียนอะไร
+ * แก้ wishlist ครั้งเดียวจบ (pure — store เป็นคนเขียน) ลำดับ: ลบ (ออกจากทุกรายการ) → ไม่อยากได้ → 🔨 ประมูล → เพิ่ม
+ * ใส่เลขเดียวกันหลายช่อง = ช่องเพิ่มชนะเสมอ (เอาเลขกลับมาเฝ้าได้ด้วยช่องเดียว) · `changed` = false แปลว่าไม่ต้องเขียนอะไร
  */
-export function applyWishlistChange(current: WishlistRows, add: number[], remove: number[], exclude: number[] = []): WishlistChange & { changed: boolean } {
+export function applyWishlistChange(current: WishlistRows, add: number[], remove: number[], exclude: number[] = [], markAuction: number[] = []): WishlistChange & { changed: boolean } {
   let numbers = [...current.numbers];
   let ex = [...current.exclude];
-  const removed = remove.filter((n) => numbers.includes(n) || ex.includes(n));
+  let au = [...(current.auction ?? [])];
+  const has = (n: number) => numbers.includes(n) || ex.includes(n) || au.includes(n);
+  const removed = remove.filter(has);
   const notFound = remove.filter((n) => !removed.includes(n));
-  numbers = numbers.filter((n) => !removed.includes(n));
-  ex = ex.filter((n) => !removed.includes(n));
+  const drop = (list: number[], gone: number[]) => list.filter((n) => !gone.includes(n));
+  numbers = drop(numbers, removed); ex = drop(ex, removed); au = drop(au, removed);
 
   const alreadyExcluded = exclude.filter((n) => ex.includes(n));
   const excluded = exclude.filter((n) => !ex.includes(n));
   ex = [...ex, ...excluded];
-  numbers = numbers.filter((n) => !exclude.includes(n));
+  numbers = drop(numbers, exclude); au = drop(au, exclude);
+
+  const alreadyAuction = markAuction.filter((n) => au.includes(n));
+  const markedAuction = markAuction.filter((n) => !au.includes(n));
+  au = [...au, ...markedAuction];
+  numbers = drop(numbers, markAuction); ex = drop(ex, markAuction);
 
   const already = add.filter((n) => numbers.includes(n));
   const added = add.filter((n) => !numbers.includes(n));
   const unexcluded = add.filter((n) => ex.includes(n));
-  ex = ex.filter((n) => !add.includes(n)).sort((a, b) => a - b);
-  numbers = [...numbers, ...added].sort((a, b) => a - b);
+  const unmarkedAuction = add.filter((n) => au.includes(n));
+  const asc = (a: number, b: number) => a - b;
+  ex = drop(ex, add).sort(asc);
+  au = drop(au, add).sort(asc);
+  numbers = [...numbers, ...added].sort(asc);
 
-  const changed = Boolean(added.length || removed.length || excluded.length || unexcluded.length ||
-    exclude.some((n) => current.numbers.includes(n)));
-  return { added, already, removed, notFound, total: numbers.length, numbers, excluded, alreadyExcluded, unexcluded, exclude: ex, changed };
+  const changed = Boolean(added.length || removed.length || excluded.length || unexcluded.length || markedAuction.length || unmarkedAuction.length ||
+    exclude.some((n) => current.numbers.includes(n)) || markAuction.some((n) => current.numbers.includes(n)));
+  return {
+    added, already, removed, notFound, total: numbers.length, numbers,
+    excluded, alreadyExcluded, unexcluded, exclude: ex,
+    markedAuction, alreadyAuction, unmarkedAuction, auction: au, changed,
+  };
 }
 
 /** เลขนี้ถูกเฝ้าอยู่แล้วผ่าน pattern/ผลรวมไหม → คืนชื่อกฎที่ครอบ (ว่าง = ไม่ครอบ) */
@@ -156,7 +175,7 @@ export function describeNumber(n: number, entries: ScheduleEntry[], today: strin
 }
 
 /** ข้อความสรุปผลของ modal — บรรทัดละเลข */
-export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string, rules = { patterns: [] as Array<{ name: string; regex: string }>, digitSums: [] as number[] }, meanings: Record<number, string> = {}): string {
+export function wishlistChangeText(c: WishlistChange, invalid: string[], owners: Record<string, string>, user: string, entries: ScheduleEntry[], today: string, rules = { patterns: [] as Array<{ name: string; regex: string }>, digitSums: [] as number[] }, meanings: Record<number, string> = {}, auctions: Record<number, string> = {}): string {
   const lines: string[] = [];
   for (const n of c.added) {
     const other = owners[n] && owners[n] !== user ? ` · 👤 ${owners[n]} เล็งไว้ก่อนแล้ว` : '';
@@ -164,19 +183,25 @@ export function wishlistChangeText(c: WishlistChange, invalid: string[], owners:
     // เตือนแต่ยังเพิ่มให้ — ระบุตรง ๆ มีประโยชน์ตอนลบ pattern ทีหลัง
     const dup = covered.length ? `\n   ↳ 💡 เลขนี้ถูกเฝ้าอยู่แล้วผ่านรูปแบบ "${covered.join('", "')}" ไม่ใส่ก็แจ้งเตือนอยู่ดี` : '';
     const mean = meanings[n] ? `\n   ↳ 🔮 ${meanings[n]}` : '';
-    lines.push(`✅ **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}${mean}`);
+    // เพิ่มให้ตามที่สั่ง แต่บอกตรง ๆ ว่ากลุ่มนี้กดจองออนไลน์ไม่ได้ ต้องไปประมูล (ADR-0006)
+    const locked = auctions[n] ? `\n   ↳ 🔨 กลุ่ม "${auctions[n]}" ขนส่งกันไว้ประมูล กดจองตอน 10:00 ไม่ได้` : '';
+    lines.push(`${auctions[n] ? '🔨' : '✅'} **${n}** เพิ่มแล้ว · ${describeNumber(n, entries, today)}${other}${dup}${mean}${locked}`);
   }
   for (const n of c.already) lines.push(`ℹ️ **${n}** อยู่ใน wishlist อยู่แล้ว${owners[n] && owners[n] !== user ? ` (👤 ${owners[n]})` : ''}`);
   for (const n of c.unexcluded) lines.push(`♻️ **${n}** เอาออกจากรายการไม่อยากได้แล้ว (กลับมาเฝ้า)`);
   for (const n of c.excluded) lines.push(`🚫 **${n}** ใส่รายการไม่อยากได้แล้ว · จะไม่แจ้งเลขนี้ไม่ว่าตรงรูปแบบไหน`);
   for (const n of c.alreadyExcluded) lines.push(`ℹ️ **${n}** อยู่ในรายการไม่อยากได้อยู่แล้ว`);
+  for (const n of c.markedAuction) lines.push(`🔨 **${n}** ทำเครื่องหมายว่าต้องประมูล · ยังอยู่ในรายการแต่ไม่แจ้งให้ไปกดจอง`);
+  for (const n of c.alreadyAuction) lines.push(`ℹ️ **${n}** อยู่ในรายการเลขประมูลอยู่แล้ว`);
+  for (const n of c.unmarkedAuction) lines.push(`♻️ **${n}** เอาออกจากรายการเลขประมูลแล้ว (กลับมาเฝ้าปกติ)`);
   for (const n of c.removed) lines.push(`🗑️ **${n}** ลบออกจากรายการแล้ว`);
   for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีในรายการไหนอยู่แล้ว`);
   for (const t of invalid) lines.push(`❌ "${t}" ไม่ใช่เลขทะเบียน 1–9999`);
   if (!lines.length) lines.push('ไม่มีอะไรเปลี่ยน');
   const current = c.numbers.length ? c.numbers.map((n) => `\`${n}\``).join(' ') : '(ว่าง)';
   const ex = c.exclude.length ? `\n**🚫 ไม่อยากได้ (${c.exclude.length}):** ${c.exclude.map((n) => `\`${n}\``).join(' ')}` : '';
-  return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}${ex}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
+  const au = c.auction.length ? `\n**🔨 ต้องประมูล (${c.auction.length}):** ${c.auction.map((n) => `\`${n}\``).join(' ')}` : '';
+  return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}${ex}${au}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
 }
 
 const shortDate = (iso: string) => formatThaiDate(iso, false);
@@ -208,6 +233,7 @@ export function describeEvent(e: StoredEvent): string {
       const parts = [
         numList(p.added) && `เพิ่ม ${numList(p.added)}`,
         numList(p.excluded) && `🚫 ${numList(p.excluded)}`,
+        numList(p.markedAuction) && `🔨 ${numList(p.markedAuction)}`,
         numList(p.removed) && `ลบ ${numList(p.removed)}`,
       ].filter(Boolean);
       return `🔢 ${who}${parts.join(' · ') || 'ไม่มีอะไรเปลี่ยน'}`;

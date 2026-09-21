@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util';
 import { resolveConfig } from './config.js';
 import { loadSchedule, runCheck, runPreview, type Env } from './core.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
+import { auctionIndex, loadAuctionRules, type AuctionIndex } from './auction.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
 import { VEHICLE_LABEL } from './schedule/types.js';
@@ -55,11 +56,16 @@ function scheduleText(s: Awaited<ReturnType<typeof loadSchedule>>): string {
   }
   return lines.join('\n');
 }
-function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<ReturnType<typeof resolveConfig>>): string {
-  const matches = matchSchedule(s.entries, config);
+function matchText(s: Awaited<ReturnType<typeof loadSchedule>>, config: Awaited<ReturnType<typeof resolveConfig>>, auction: AuctionIndex): string {
+  const matches = matchSchedule(s.entries, config, auction);
   if (!matches.length) return 'รอบนี้ไม่มีเลขใน wishlist เปิดจอง';
-  return matches.map((m) => `${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}\n` +
-    m.numbers.map((n) => `  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`).join('\n')).join('\n\n');
+  return matches.map((m) => {
+    const head = `${formatThaiDate(m.entry.openDate)} · ${m.entry.prefix} ${m.entry.from}–${m.entry.to}`;
+    const rows = m.numbers.map((n) => `  ${m.entry.prefix} ${n}\t${m.reasons.get(n)!.join(', ')}`);
+    // เลขประมูลแยกท้ายบล็อก — เห็นว่ามีอยู่ แต่ไม่ปนกับเลขที่กดจองได้ (ADR-0006)
+    const locked = m.auction.map((a) => `  🔨 ${m.entry.prefix} ${a.n}\t${a.group} — ต้องประมูล`);
+    return [head, ...(rows.length ? rows : ['  (ไม่มีเลขที่จองออนไลน์ได้)']), ...locked].join('\n');
+  }).join('\n\n');
 }
 
 /** เลือกปลายทาง: dry-run → ไม่ส่ง · ไม่งั้น webhook */
@@ -98,7 +104,7 @@ async function main() {
     }
     case 'match': {
       const config = await getConfig();
-      console.log(matchText(await loadSchedule(config.scheduleFileId), config));
+      console.log(matchText(await loadSchedule(config.scheduleFileId), config, auctionIndex(await loadAuctionRules(), config.wishlist.auction)));
       return;
     }
     case 'preview': {

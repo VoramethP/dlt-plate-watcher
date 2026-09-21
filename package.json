@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
     "db:import": "node --env-file-if-exists=.env --import tsx scripts/import-local.ts",
-    "db:copy": "node --env-file-if-exists=.env --import tsx scripts/copy-db.ts"
+    "db:copy": "node --env-file-if-exists=.env --import tsx scripts/copy-db.ts",
+    "gen:auction": "node --import tsx scripts/gen-auction-rules.ts"
   },
   "keywords": [],
   "author": "",

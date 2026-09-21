@@ -15,16 +15,16 @@ export const HISTORY_KINDS: EventKind[] = ['notify', 'wishlist', 'clear', 'ping'
 export interface EventInput { kind: EventKind; actor?: Actor; payload?: Record<string, unknown> }
 export interface StoredEvent extends EventInput { at: string }
 
-export interface WishlistRows { numbers: number[]; exclude: number[] }
+export interface WishlistRows { numbers: number[]; exclude: number[]; auction: number[] }
 /** ผลของการแก้ wishlist ที่ store ต้องบันทึก (มาจาก applyWishlistChange ใน actions.ts) */
-export interface WishlistWrite extends WishlistRows { added: number[]; excluded: number[]; removed: number[] }
+export interface WishlistWrite extends WishlistRows { added: number[]; excluded: number[]; removed: number[]; markedAuction: number[] }
 
 export interface Store {
   /** notified · lastScheduleVersion · owners — รูปเดียวกับไฟล์ state เดิม */
   loadState(): Promise<State>;
   /** บันทึก key ที่แจ้งไปแล้ว (append-only) และเวอร์ชันตารางล่าสุดถ้ามี */
   appendNotified(keys: string[], scheduleVersion?: string): Promise<void>;
-  /** เลขที่ปุ่มแก้ได้ (numbers/exclude) */
+  /** เลขที่ปุ่มแก้ได้ (numbers/exclude/auction) */
   loadWishlist(): Promise<WishlistRows>;
   /** เขียน wishlist หลังแก้ + จำว่าใครเพิ่ม · คืน owners ก่อนแก้ (ไว้บอกว่า "มีคนเล็งไว้ก่อนแล้ว") */
   saveWishlist(w: WishlistWrite, actor: Actor): Promise<Record<string, string>>;
@@ -49,8 +49,8 @@ export function fileStore(opts: FileStoreOptions): Store {
   const eventsPath = join(dirname(opts.statePath), 'events.jsonl');
   const readConfigRaw = async () => {
     const raw = JSON.parse(await readFile(opts.configPath, 'utf8'));
-    raw.wishlist ??= {}; raw.wishlist.numbers ??= []; raw.wishlist.exclude ??= [];
-    return raw as { wishlist: { numbers: number[]; exclude: number[] } };
+    raw.wishlist ??= {}; raw.wishlist.numbers ??= []; raw.wishlist.exclude ??= []; raw.wishlist.auction ??= [];
+    return raw as { wishlist: { numbers: number[]; exclude: number[]; auction: number[] } };
   };
   const patchState = async (fn: (s: State) => State) => saveState(opts.statePath, fn(await loadState(opts.statePath)));
 
@@ -61,17 +61,17 @@ export function fileStore(opts: FileStoreOptions): Store {
     })),
     async loadWishlist() {
       const { wishlist } = await readConfigRaw();
-      return { numbers: wishlist.numbers, exclude: wishlist.exclude };
+      return { numbers: wishlist.numbers, exclude: wishlist.exclude, auction: wishlist.auction };
     },
     async saveWishlist(w, actor) {
       const raw = await readConfigRaw();
-      raw.wishlist.numbers = w.numbers; raw.wishlist.exclude = w.exclude;
+      raw.wishlist.numbers = w.numbers; raw.wishlist.exclude = w.exclude; raw.wishlist.auction = w.auction;
       await writeFile(opts.configPath, JSON.stringify(raw, null, 2) + '\n');
       let before: Record<string, string> = {};
       await patchState((s) => {
         before = { ...(s.owners ?? {}) };
         const owners = { ...before };
-        for (const n of [...w.removed, ...w.excluded]) delete owners[n];
+        for (const n of [...w.removed, ...w.excluded, ...w.markedAuction]) delete owners[n];
         for (const n of w.added) owners[n] ??= actor.name;
         return { ...s, owners };
       });

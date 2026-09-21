@@ -18,12 +18,12 @@ try {
   let added = 0;
   for (const n of numbers.filter((n) => !before.numbers.includes(n))) {
     const who = owners[n] ?? 'import';
-    await store.saveWishlist({ numbers: [], exclude: [], added: [n], excluded: [], removed: [] }, { id: who, name: who });
+    await store.saveWishlist({ numbers: [], exclude: [], auction: [], added: [n], excluded: [], removed: [], markedAuction: [] }, { id: who, name: who });
     added++;
   }
   let excluded = 0;
   for (const n of exclude.filter((n) => !before.exclude.includes(n))) {
-    await store.saveWishlist({ numbers: [], exclude: [], added: [], excluded: [n], removed: [] }, { id: 'import', name: 'import' });
+    await store.saveWishlist({ numbers: [], exclude: [], auction: [], added: [], excluded: [n], removed: [], markedAuction: [] }, { id: 'import', name: 'import' });
     excluded++;
   }
   const keys: string[] = local.notified ?? [];

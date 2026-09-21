@@ -8,10 +8,11 @@ export const notified = pgTable('notified', {
   at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
-/** เลขที่ปุ่ม 🔢 แก้ได้ — kind 'want' | 'exclude' · owner = คนที่เพิ่ม (ชื่อโชว์เปลี่ยนได้ จึงเก็บ id ด้วย) */
+/** เลขที่ปุ่ม 🔢 แก้ได้ — kind 'want' | 'exclude' | 'auction' · owner = คนที่เพิ่ม (ชื่อโชว์เปลี่ยนได้ จึงเก็บ id ด้วย) */
 export const wishlist = pgTable('wishlist', {
   number: integer('number').primaryKey(),
-  kind: text('kind', { enum: ['want', 'exclude'] }).notNull(),
+  // enum นี้เป็นแค่ type ฝั่ง TS คอลัมน์จริงคือ text — เพิ่มค่าใหม่ไม่ต้อง migration
+  kind: text('kind', { enum: ['want', 'exclude', 'auction'] }).notNull(),
   ownerId: text('owner_id').notNull(),
   ownerName: text('owner_name').notNull(),
   addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
