@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { auctionIndex, loadAuctionRules } from '../src/auction.js';
 import { resolveConfig } from '../src/config.js';
 import { loadNumerology } from '../src/numerology.js';
-import { clearDaily, sendDaily, type InteractionDeps } from '../src/notify/interactions.js';
+import { clearDaily, sendDaily, sweepChannel, type InteractionDeps } from '../src/notify/interactions.js';
 import type { DiscordRest } from '../src/notify/rest.js';
 import type { Schedule } from '../src/schedule/types.js';
 import { AVOID_GRADE, scoreNumber, suggestNumbers } from '../src/suggest.js';
@@ -174,5 +174,60 @@ describe('📣 การ์ดประจำวัน', () => {
     expect(d.calls.some((c) => c.method === 'DELETE' && c.path === '/channels/C/messages/500')).toBe(true);
     expect(await d.store.getMeta('dailyMessageId')).toBe('');
     expect((await d.store.recentEvents(1, ['daily']))[0].payload).toMatchObject({ cleared: true });
+  });
+});
+
+// 🧽 กวาดห้องก่อนเริ่มวันใหม่ (09:30) — ผู้ใช้ขอให้ห้องเหลือ "การ์ดวันนี้ + แผง" เท่านั้น
+describe('กวาดห้องอัตโนมัติ', () => {
+  const fresh = (n: number) => String((BigInt(Date.now() - 1420070400000) << 22n) + BigInt(n));
+  function room(deleteStatus = 204) {
+    const calls: Array<{ method: string; path: string; body?: unknown }> = [];
+    const rest: DiscordRest = {
+      async request(method, path, body) {
+        calls.push({ method, path, body });
+        if (method === 'GET' && path === '/users/@me') return { id: 'bot' } as never;
+        if (method === 'GET' && path.includes('messages?limit=100')) return [
+          { id: fresh(1), author: { id: 'bot' }, type: 0 },
+          { id: fresh(2), author: { id: 'bot' }, type: 0 },
+          { id: fresh(3), author: { id: 'human' }, type: 0 },
+        ] as never;
+        if (method === 'POST' && path.endsWith('/bulk-delete') && deleteStatus === 403) throw new Error('Discord POST → HTTP 403: Missing Permissions');
+        if (method === 'DELETE' && deleteStatus === 403) throw new Error('Discord DELETE → HTTP 403: Missing Permissions');
+        if (method === 'POST' && path.endsWith('/messages')) return { id: '900', author: { id: 'bot' }, type: 0 } as never;
+        if (method === 'GET') return [] as never;
+        return undefined as never;
+      },
+    };
+    return { rest, calls };
+  }
+
+  it("scope 'bot' ลบเฉพาะของ bot ไม่แตะของคนอื่น", async () => {
+    const d = await deps();
+    const { rest, calls } = room();
+    const r = await sweepChannel({ ...d, rest }, 'bot');
+    expect(r).toEqual({ deleted: 2, blocked: false });
+    const bulk = calls.find((c) => c.path.endsWith('/bulk-delete'))!.body as { messages: string[] };
+    expect(bulk.messages).toHaveLength(2); // ของ human ไม่อยู่ในรายการ
+  });
+
+  it("scope 'all' ลบของทุกคน และล้าง meta ที่ชี้ข้อความที่เพิ่งลบ", async () => {
+    const d = await deps();
+    await d.store.setMeta('dailyMessageId', '123');
+    await d.store.setMeta('panelMessageId', '456');
+    const { rest, calls } = room();
+    expect(await sweepChannel({ ...d, rest }, 'all')).toEqual({ deleted: 3, blocked: false });
+    expect((calls.find((c) => c.path.endsWith('/bulk-delete'))!.body as { messages: string[] }).messages).toHaveLength(3);
+    expect(await d.store.getMeta('dailyMessageId')).toBe('');
+    expect(await d.store.getMeta('panelMessageId')).toBe('');
+    expect((await d.store.recentEvents(1, ['clear']))[0].payload).toMatchObject({ deleted: 3, scope: 'all', auto: true });
+  });
+
+  it('ไม่มีสิทธิ์ Manage Messages → บอกว่ากวาดไม่ครบ ไม่ล้มทั้งรอบ', async () => {
+    const d = await deps();
+    const logs: string[] = [];
+    const { rest } = room(403);
+    const r = await sweepChannel({ ...d, rest, log: (m) => logs.push(m) }, 'all');
+    expect(r).toEqual({ deleted: 0, blocked: true });
+    expect(logs.join(' ')).toContain('Manage Messages');
   });
 });

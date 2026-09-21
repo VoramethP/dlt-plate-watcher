@@ -14,7 +14,7 @@ import {
 } from './actions.js';
 import { chunkEmbeds, dailyEmbed, guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
 import { composeDaily } from '../daily.js';
-import { createFollowup, createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, type DiscordRest } from './rest.js';
+import { botUserId, createFollowup, createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, sweepMessages, type DiscordRest } from './rest.js';
 
 // --- รูปร่างของ interaction เท่าที่ใช้ (ไม่ดึง discord-api-types มาเพื่อ 6 field) ---
 export const InteractionType = { PING: 1, APPLICATION_COMMAND: 2, MESSAGE_COMPONENT: 3, MODAL_SUBMIT: 5 } as const;
@@ -110,6 +110,22 @@ async function replyEmbeds(rest: DiscordRest, i: Interaction, embeds: Embed[], c
 
 /** meta key ของการ์ดประจำวันใบล่าสุด — ใช้ลบตอน 23:50 หรือตอนโพสต์ใบใหม่ทับ */
 const DAILY_KEY = 'dailyMessageId';
+
+/**
+ * 🧽 กวาดห้องก่อนเริ่มวันใหม่ (เรียกจาก cron 09:30 ก่อนโพสต์อะไร) — ห้องจะเหลือแค่ของวันนี้
+ * scope 'all' ลบของทุกคน ต้องมีสิทธิ์ Manage Messages · ไม่มีสิทธิ์จะคืน blocked มาให้บอกผู้ใช้ ไม่ล้มทั้งรอบ
+ */
+export async function sweepChannel(deps: InteractionDeps, scope: 'bot' | 'all' = 'bot') {
+  const r = await sweepMessages(deps.rest, deps.channelId, {
+    scope,
+    botUserId: scope === 'bot' ? await botUserId(deps.rest) : undefined,
+  });
+  if (r.deleted) await deps.store.logEvent({ kind: 'clear', payload: { deleted: r.deleted, scope, auto: true } });
+  if (r.blocked) (deps.log ?? console.log)('กวาดห้องไม่ครบ: bot ไม่มีสิทธิ์ Manage Messages จึงลบข้อความของคนอื่นไม่ได้');
+  // meta ที่ชี้ข้อความที่เพิ่งถูกกวาดไปแล้ว ต้องล้าง ไม่งั้นรอบหน้าไปลบ id ที่ไม่มีอยู่
+  if (r.deleted) { await deps.store.setMeta(DAILY_KEY, ''); await deps.store.setMeta('panelMessageId', ''); }
+  return r;
+}
 
 /**
  * 📣 โพสต์การ์ดประจำวันเข้าห้อง (ทุกคนเห็น) — เรียกจาก cron 09:30

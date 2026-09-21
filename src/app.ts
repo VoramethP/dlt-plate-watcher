@@ -16,6 +16,8 @@ const required = (name: string) => {
 export interface App extends InteractionDeps {
   publicKey: string;
   cronSecret: string;
+  /** 'all' = กวาดข้อความของทุกคนตอน 09:30 (ต้องมีสิทธิ์ Manage Messages) · 'bot' = เฉพาะของ bot เอง */
+  sweepScope: 'bot' | 'all';
   close: () => Promise<void>;
 }
 
@@ -30,6 +32,7 @@ export async function createApp(): Promise<App> {
     rest: discordRest(required('DISCORD_BOT_TOKEN')),
     channelId: required('DISCORD_CHANNEL_ID'),
     publicKey: required('DISCORD_PUBLIC_KEY'),
+    sweepScope: process.env.DAILY_SWEEP === 'all' ? 'all' : 'bot',
     cronSecret: process.env.CRON_SECRET ?? '', // ว่าง = cron ปิดอยู่ (ปุ่มยังทำงาน) · cronAuthorized ไม่ยอมรับค่าว่าง
     config: () => resolveConfig({ configPath: 'watch.config.json', store }),
     numerology: () => loadNumerology(),

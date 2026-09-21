@@ -10,7 +10,7 @@ Discord bot เฝ้าตาราง PDF เปิดจองเลขทะ
 ## ตอนนี้อยู่ตรงไหน
 
 **Phase 6 ขึ้นจริง · Vercel Cron ยืนยันแล้ว 21 ก.ย. 08:41** — `https://dlt-plate-watcher.vercel.app` · Interactions Endpoint + `/panel` + ทุกปุ่มผ่านบน Discord จริง · cron-job.org 09:50 · `watch` เก่าบน Mac ปิดแล้ว
-**เลขประมูล 301 เลข/หมวด แยกช่อง 🔨 (ADR-0006)** · **การ์ดประจำวัน 📣 09:30 ลบเอง 23:50 แทนการแจ้งรายวัน (ADR-0007)**
+**เลขประมูล 301 เลข/หมวด แยกช่อง 🔨 (ADR-0006)** · **การ์ดประจำวัน 📣 09:30 (กวาดห้องก่อนโพสต์ · `DAILY_SWEEP=all`) ลบเอง 23:50 (ADR-0007)** · ไม่มี Vercel Cron แล้ว
 state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · ADR-0005 › หมายเหตุ) 4 ตาราง `notified` `wishlist` `meta` `events` · CLI + webhook + `.state/` ยังเป็น fallback · 89 เทส
 **push `main` = deploy production เอง** (Vercel ต่อ GitHub แล้ว) · env ใส่ผ่าน CLI ครบ 6 ตัว
 

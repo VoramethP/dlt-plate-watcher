@@ -93,7 +93,7 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 3. Deploy → ได้ URL เช่น `https://dlt-plate-watcher.vercel.app`
 4. กลับไป Developer Portal → **General Information → Interactions Endpoint URL** = `https://<app>.vercel.app/api/interactions` → Save (Discord จะยิง PING ทดสอบ ต้องขึ้นว่าบันทึกสำเร็จ)
 5. บนเครื่อง `npm run register` (ต้องมี `DISCORD_BOT_TOKEN` + `DISCORD_APP_ID` ใน `.env`) → พิมพ์ `/panel` ในช่องได้
-6. `vercel.json` ตั้ง Vercel Cron ยิง `api/cron/check` ทุกวัน 08:00 ไทยไว้แล้ว (แผน Hobby คลาดได้ ±59 นาที ยังทันก่อน 10:00)
+6. ไม่ต้องใช้ Vercel Cron (แผน Hobby ยิงได้วันละครั้งต่อ job และคลาด ±59 นาที) — งานตามเวลาทั้งหมดอยู่ที่ cron-job.org ในข้อถัดไป
 7. เวลาที่ต้องตรงนาทีใช้ [cron-job.org](https://cron-job.org) (ฟรี) ทุก job ใส่ header `Authorization: Bearer <CRON_SECRET>` · Asia/Bangkok ทุกวัน
 
    | เวลา | URL | ทำอะไร |
@@ -127,6 +127,9 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 - เลขที่ bot คัดให้จากช่วงของวันนั้น **สายละ 3 เลข** ตาม [`numerology.json`](numerology.json) พร้อมเหตุผลและจำนวนแหล่งที่ตำราตรงกัน
   — ตัดเลขประมูล เลขที่ตำราบอกให้เลี่ยง และผลรวมเกรด "ไม่ดีนัก" ออกแล้ว
 - 🔜 รอบพรุ่งนี้ + ของที่ต้องเตรียม · ปุ่ม 🔢 ใต้การ์ดกดเพิ่มเลขที่ถูกใจเข้า wishlist ได้ทันที
+
+**ห้องจะเหลือแค่ของวันนี้** เพราะ 09:30 bot กวาดข้อความเก่าก่อนโพสต์ · ตั้ง `DAILY_SWEEP=all` ใน env ให้กวาดของทุกคน
+(ต้องให้สิทธิ์ Manage Messages กับ bot) หรือไม่ใส่ = กวาดเฉพาะข้อความของ bot เอง · ลบค่า env ทิ้งเมื่อไหร่ก็ปิดฟีเจอร์ทันที
 
 ดูหน้าตาบนเครื่องก่อนได้: `npm run dev -- daily` · รายละเอียด: [ADR-0007](docs/adr/0007-daily-card-replaces-per-day-notifications.md)
 
@@ -228,7 +231,7 @@ docs/adr/             เหตุผลของการตัดสินใ�
 ```
 
 ```bash
-npm test              # 107 tests
+npm test              # 115 tests
 npm run typecheck
 ```
 

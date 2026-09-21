@@ -62,19 +62,51 @@ export async function pinQuietly(rest: DiscordRest, channelId: string, messageId
   }
 }
 
-/** ลบข้อความของ bot เองในช่อง (ยกเว้น keepId) · bulk-delete ใช้ได้กับข้อความ < 14 วันและ ≥ 2 ข้อความ ที่เหลือลบทีละอัน */
-export async function deleteOwnMessages(rest: DiscordRest, channelId: string, botUserId: string, keepId: string): Promise<number> {
-  const fetched = await rest.request<MessageRef[]>('GET', `/channels/${channelId}/messages?limit=100`);
-  const mine = fetched.filter((m) => m.author.id === botUserId && m.id !== keepId);
-  if (!mine.length) return 0;
-  const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-  const recent = mine.filter((m) => snowflakeTime(m.id) > twoWeeksAgo);
-  const old = mine.filter((m) => snowflakeTime(m.id) <= twoWeeksAgo);
-  if (recent.length >= 2) await rest.request('POST', `/channels/${channelId}/messages/bulk-delete`, { messages: recent.map((m) => m.id) });
-  else for (const m of recent) await deleteMessage(rest, channelId, m.id).catch(() => undefined);
-  for (const m of old) await deleteMessage(rest, channelId, m.id).catch(() => undefined);
-  return mine.length;
+export interface SweepOptions {
+  /** ข้อความของ bot เอง — ต้องใส่เมื่อ scope = 'bot' */
+  botUserId?: string;
+  /** id ที่ห้ามลบ (ข้อความที่ผู้ใช้เพิ่งกดปุ่ม หรือแผงที่เพิ่งโพสต์) */
+  keep?: string[];
+  /** 'bot' = เฉพาะของ bot (ปุ่ม 🧹) · 'all' = ทุกคนในช่อง (ต้องมีสิทธิ์ Manage Messages · ตั้งด้วย DAILY_SWEEP=all) */
+  scope?: 'bot' | 'all';
 }
+
+/**
+ * กวาดข้อความในช่อง (สูงสุด 100 ข้อความล่าสุด)
+ * bulk-delete ใช้ได้กับข้อความ < 14 วันและ ≥ 2 ข้อความ ที่เหลือลบทีละอัน · ไม่มีสิทธิ์ = คืน blocked ไม่ใช่โยนทิ้ง
+ */
+export async function sweepMessages(rest: DiscordRest, channelId: string, opts: SweepOptions): Promise<{ deleted: number; blocked: boolean }> {
+  const keep = new Set(opts.keep ?? []);
+  const fetched = await rest.request<MessageRef[]>('GET', `/channels/${channelId}/messages?limit=100`);
+  const target = fetched.filter((m) => !keep.has(m.id) && (opts.scope === 'all' || m.author.id === opts.botUserId));
+  if (!target.length) return { deleted: 0, blocked: false };
+  const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const recent = target.filter((m) => snowflakeTime(m.id) > twoWeeksAgo);
+  const old = target.filter((m) => snowflakeTime(m.id) <= twoWeeksAgo);
+  let blocked = false;
+  const one = async (id: string) => {
+    try { await deleteMessage(rest, channelId, id); return true; } catch (err) {
+      if (/HTTP 403/.test(err instanceof Error ? err.message : '')) blocked = true; // ไม่มีสิทธิ์ลบของคนอื่น
+      return false;
+    }
+  };
+  let deleted = 0;
+  if (recent.length >= 2) {
+    try { await rest.request('POST', `/channels/${channelId}/messages/bulk-delete`, { messages: recent.map((m) => m.id) }); deleted += recent.length; }
+    catch { for (const m of recent) if (await one(m.id)) deleted++; } // bulk พลาด (สิทธิ์/ข้อความเก่า) → ลองทีละอัน
+  } else {
+    for (const m of recent) if (await one(m.id)) deleted++;
+  }
+  for (const m of old) if (await one(m.id)) deleted++;
+  return { deleted, blocked };
+}
+
+/** ปุ่ม 🧹 — ลบเฉพาะข้อความของ bot เอง ไม่แตะของคนอื่นไม่ว่าจะตั้ง DAILY_SWEEP ไว้ยังไง */
+export const deleteOwnMessages = async (rest: DiscordRest, channelId: string, botUserId: string, keepId: string) =>
+  (await sweepMessages(rest, channelId, { botUserId, keep: [keepId], scope: 'bot' })).deleted;
+
+/** id ของ bot = application id · ถามครั้งเดียวตอน cron กวาดห้อง (ไม่มี interaction ให้ดู author) */
+export const botUserId = async (rest: DiscordRest) => (await rest.request<{ id: string }>('GET', '/users/@me')).id;
 
 /** เวลาสร้างจาก snowflake — Discord epoch 2015-01-01 */
 export const snowflakeTime = (id: string) => Number(BigInt(id) >> 22n) + 1420070400000;
