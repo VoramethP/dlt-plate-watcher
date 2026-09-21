@@ -1,7 +1,7 @@
 # 🔥 HOTCACHE
 
 > อ่านไฟล์นี้หลัง `HANDOFF.md` · **ห้ามเกิน 500 คำ** (`wc -w`)
-> Updated: **2026-09-21**
+> Updated: **2026-09-21 (เที่ยง)**
 
 ## โปรเจกต์นี้คืออะไร
 
@@ -11,7 +11,7 @@ Discord bot เฝ้าตาราง PDF เปิดจองเลขทะ
 
 **Phase 6 ขึ้นจริง · Vercel Cron ยืนยันแล้ว 21 ก.ย. 08:41** — `https://dlt-plate-watcher.vercel.app` · Interactions Endpoint + `/panel` + ทุกปุ่มผ่านบน Discord จริง · cron-job.org 09:50 · `watch` เก่าบน Mac ปิดแล้ว
 **เลขประมูล 301 เลข/หมวด แยกช่อง 🔨 (ADR-0006)** · **การ์ดประจำวัน 📣 09:30 (กวาดห้องก่อนโพสต์ · `DAILY_SWEEP=all`) ลบเอง 23:50 (ADR-0007)** · ไม่มี Vercel Cron แล้ว
-state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · ADR-0005 › หมายเหตุ) 4 ตาราง `notified` `wishlist` `meta` `events` · CLI + webhook + `.state/` ยังเป็น fallback · 89 เทส
+cron ทั้งหมดอยู่บน cron-job.org (09:30 daily · 09:50 ping · 23:50 clear) · state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · ADR-0005 › หมายเหตุ) 4 ตาราง `notified` `wishlist` `meta` `events` · CLI + webhook + `.state/` ยังเป็น fallback · 115 เทส
 **push `main` = deploy production เอง** (Vercel ต่อ GitHub แล้ว) · env ใส่ผ่าน CLI ครบ 6 ตัว
 
 ## กฎเหล็ก
@@ -25,10 +25,10 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 
 ## งานถัดไป
 
-1. **ผู้ใช้ต้องแก้ cron-job.org**: job 09:30 → `/api/cron/daily` (จากเดิม `/api/cron/check`) + เพิ่ม job 23:50 → `/api/cron/daily-clear`
-2. พรุ่งนี้เช้าดูว่าการ์ดประจำวันโผล่จริงตอน 09:30 และหายตอน 23:50 (`events` kind `daily`)
-3. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (Vercel) · หน้า 01–07 ยังเป็นภาพก่อนมีการ์ดประจำวัน
-3. บั๊กจากผู้ใช้: ดู Vercel › Logs (`npx vercel logs dlt-plate-watcher.vercel.app`) และตาราง `events` ใน Neon ก่อน · error ของ interaction ตอบกลับผู้กดแล้ว (`❌ bot พลาด: …`)
+1. **เช้า 22 ก.ย. เช็ค `events` 4 แถว** (รายละเอียดใน `HANDOFF.md`)
+2. ยังไม่สั่ง: ตัด `events` เก็บ 90 วัน · เปลี่ยน pattern ที่ชนกลุ่มประมูลทั้งกลุ่ม (แก้ทั้งไฟล์ + `WATCH_CONFIG_JSON`)
+3. drawio หน้า 01–07 ยังเป็นภาพก่อนมีเลขประมูล/การ์ดประจำวัน
+4. บั๊กจากผู้ใช้: ดูตาราง `events` ก่อน แล้ว `npx vercel logs dlt-plate-watcher.vercel.app` · error ของ interaction ตอบกลับผู้กดแล้ว
 
 ## กับดักที่เคยเจอ
 
@@ -41,11 +41,11 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 - **ลบข้อความถี่ ๆ โดน 429** → `discordRest` รอ `retry_after` ลองใหม่ 1 ครั้ง · ลบไม่ผ่านห้ามตอบว่าสำเร็จ
 - **pooler ไม่รองรับ prepared statements** → `postgres(url, { prepare: false })` · migrate ใช้ตัว direct
 - **scratchpad ไม่มี package.json/node_modules** → สคริปต์ที่ใช้ package ต้องอยู่ใน `scripts/`
-- **pdf.js แยก "8" กับ "ขจ"** → `ROW_RE` ใช้ `(\d)\s*([ก-ฮ]{1,3})`
+- **pdf.js แยก "8" กับ "ขจ"** → `ROW_RE` `(\d)\s*([ก-ฮ]{1,3})`
 - **stale ต้องไม่ตัด deadline reminder** · **ไฟล์ .json ท้ายรีโปต้องอยู่ใน `vercel.json › includeFiles`** · **modal label ≤45 ตัวอักษร ไม่งั้น "ไม่ตอบสนอง"**
-- **webhook เคยหลุดเข้า `.env.example`** → เทส repo-hygiene · stage by name เท่านั้น
+- **webhook เคยหลุดเข้า `.env.example`** → เทส repo-hygiene · stage by name
 - **"เลขสวย" ที่ผู้ใช้ตั้ง pattern = ชุดเดียวกับที่ขนส่งกันไว้ประมูล** — เลขตอง/คู่สลับทั้งกลุ่มจองออนไลน์ไม่ได้ · การ์ดบางลงคือถูกแล้ว
-- **แก้ไฟล์ replace ทีละบล็อก** ไม่ slice ระหว่าง marker · python heredoc มีไทยใส่ `# -*- coding: utf-8 -*-`
+- **แก้ไฟล์ replace ทีละบล็อก** · python heredoc มีไทยใส่ `# -*- coding: utf-8 -*-`
 
 ---
 📜 ประวัติเต็ม: `docs/WORKLOG.md` · 📐 กฎทั้งหมด: `CLAUDE.md`
