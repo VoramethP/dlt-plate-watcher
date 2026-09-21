@@ -1,7 +1,7 @@
 // งานหลักที่ CLI และ cron เรียกใช้ — แยกจาก cli.ts เพื่อให้เทสได้โดยไม่ต้อง spawn process
 import type { Config } from './config.js';
 import { matchSchedule, type Match } from './match.js';
-import { matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
+import { chunkEmbeds, matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
 import { fetchSchedulePdf, type Fetcher } from './schedule/fetch.js';
 import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
@@ -79,9 +79,11 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
   return out;
 }
 
-/** Discord รับได้สูงสุด 10 embed ต่อข้อความ */
+/** Discord รับได้สูงสุด 10 embed และ 6000 ตัวอักษรรวมต่อข้อความ (chunkEmbeds คุมทั้งสองอย่าง) */
 async function sendInChunks(notifier: Notifier, embeds: Embed[]) {
-  for (let i = 0; i < embeds.length; i += 10) await notifier.send(embeds.slice(i, i + 10));
+  for (const chunk of chunkEmbeds(embeds)) await notifier.send(chunk);
+  // ย้ายแผงมาล่างสุดครั้งเดียวหลังส่งครบ ไม่ใช่ทุกข้อความ
+  await notifier.done?.();
 }
 
 async function sendFresh(planned: Array<{ key: string; embed: Embed }>, state: State, env: Env) {

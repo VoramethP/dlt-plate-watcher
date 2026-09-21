@@ -157,3 +157,51 @@ describe('ข้อความ error ไม่รั่ว token ของ inte
     expect(redactPath('/channels/1/messages')).toBe('/channels/1/messages');
   });
 });
+
+// 21 ก.ย. 2569: ขนส่งออกตารางใหม่ 5 วัน → embed รวมกัน 6230 ตัวอักษร → Discord ตอบ 400 MAX_EMBED_SIZE_EXCEEDED
+// ทั้งแจ้งเตือนในช่อง (POST /channels) และคำตอบ ephemeral (PATCH @original) ต้องแยกข้อความเอง
+describe('embed ยาวเกิน 6000 ตัวอักษรต่อข้อความ', () => {
+  const week: Schedule = {
+    sourceFileId: 'F', version: 'v2', fetchedAt: '', entries: ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25'].map((openDate, i) => ({
+      vehicleType: 'car' as const, openDate, prefix: '8ขช', from: i * 2000 + 1, to: (i + 1) * 2000, registerBy: '2026-10-21',
+    })),
+  };
+  const wide = async (d: InteractionDeps) => {
+    d.schedule = async () => week;
+    d.numerology = async () => (await import('../src/numerology.js')).loadNumerology();
+    d.config = async () => ({
+      scheduleFileId: 'x'.repeat(24), vehicleType: 'car' as const,
+      wishlist: { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 5456, 8888, 9999], patterns: [{ name: 'เลขคู่สลับ', regex: '^(\\d)(\\d)\\1\\2$' }], digitSums: [9] },
+      reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] },
+    });
+  };
+  const bodies = (d: { calls: Array<{ method: string; path: string; body?: unknown }> }, method: string, path: string) =>
+    d.calls.filter((c) => c.method === method && c.path === path).map((c) => c.body as { embeds?: Array<{ title: string }>; components?: unknown[] });
+
+  it('🔄 เช็คตอนนี้ → แยกเป็นหลายข้อความในช่อง แต่ย้ายแผงครั้งเดียว', async () => {
+    const d = await deps();
+    await wide(d);
+    d.now = new Date('2026-09-21T01:00:00Z');
+    await run(d, button(COMMAND.check));
+    expect(d.patched().at(-1)?.content).toContain('🔄 เช็คแล้ว');
+    const posts = bodies(d, 'POST', '/channels/C/messages');
+    const panels = posts.filter((b) => b.embeds?.[0].title === '🏠 dlt-plate-watcher');
+    const notes = posts.filter((b) => !panels.includes(b));
+    expect(notes.length).toBeGreaterThan(1); // เคยยัดใบเดียวแล้วโดน 400
+    expect(panels).toHaveLength(1); // แผงขยับครั้งเดียว ไม่ใช่ทุกข้อความ
+    expect(notes.flatMap((b) => b.embeds!)).toHaveLength(6); // 5 การ์ด + เตือนเปิดพรุ่งนี้ ครบ ไม่หาย
+  });
+
+  it('🎯 เลขในฝัน → PATCH ใบแรก แล้วต่อด้วย follow-up ephemeral · ปุ่มอยู่ข้อความสุดท้ายใบเดียว', async () => {
+    const d = await deps();
+    await wide(d);
+    await run(d, button(COMMAND.match));
+    const patched = bodies(d, 'PATCH', '/webhooks/app/tok/messages/@original');
+    const follow = bodies(d, 'POST', '/webhooks/app/tok') as Array<{ embeds: unknown[]; components: unknown[]; flags?: number }>;
+    expect(follow.length).toBeGreaterThan(0);
+    expect(follow.at(-1)!.flags).toBe(64); // ยังเห็นเฉพาะคนกด
+    expect(patched[0].components).toHaveLength(0);
+    expect(follow.at(-1)!.components).toHaveLength(1);
+    expect([...patched, ...follow].flatMap((b) => b.embeds as unknown[])).toHaveLength(5);
+  });
+});

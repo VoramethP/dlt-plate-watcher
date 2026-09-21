@@ -34,6 +34,10 @@ export const createMessage = (rest: DiscordRest, channelId: string, body: { cont
   rest.request<MessageRef>('POST', `/channels/${channelId}/messages`, body);
 export const deleteMessage = (rest: DiscordRest, channelId: string, messageId: string) =>
   rest.request('DELETE', `/channels/${channelId}/messages/${messageId}`);
+/** ข้อความเพิ่มของ interaction เดิม (ephemeral) — ใช้เมื่อ embed ชุดเดียวยาวเกิน 6000 ต้องแยกข้อความ */
+export const createFollowup = (rest: DiscordRest, appId: string, token: string, body: { content?: string; embeds?: Embed[]; components?: unknown[] }) =>
+  rest.request('POST', `/webhooks/${appId}/${token}`, { ...body, flags: 64 });
+
 /** follow-up ของ interaction ที่ตอบ deferred ไปแล้ว — ใช้ token ของ interaction ไม่ใช่ bot token แต่ path เดียวกัน */
 export const editOriginal = (rest: DiscordRest, appId: string, token: string, body: { content?: string; embeds?: Embed[]; components?: unknown[] }) =>
   rest.request('PATCH', `/webhooks/${appId}/${token}/messages/@original`, body);
@@ -74,10 +78,13 @@ export interface RestNotifierOptions {
 
 /** Notifier สำหรับ core.ts — ข้อความแจ้งเตือนมีปุ่ม 📤/🌐 ใต้การ์ด */
 export function restNotifier(rest: DiscordRest, opts: RestNotifierOptions): Notifier {
+  let sent = false;
   return {
     async send(embeds: Embed[]) {
       await createMessage(rest, opts.channelId, { embeds, components: buttonRows() });
-      await opts.afterSend?.();
+      sent = true;
     },
+    // แผงต้องขยับครั้งเดียวตอนจบ — ไม่งั้นแจ้งหลายข้อความ = โพสต์/ลบแผงหลายรอบ
+    async done() { if (sent) await opts.afterSend?.(); },
   };
 }

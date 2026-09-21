@@ -106,3 +106,40 @@ describe('wishlistEmbed', () => {
     expect(wishlistEmbed(config, {}, [], '2026-09-15').fields![0].value).toContain('ยังไม่มี');
   });
 });
+
+import { chunkEmbeds, clampEmbed, embedChars, MESSAGE_CHAR_BUDGET, type Embed } from '../src/notify/discord.js';
+describe('ลิมิต "ทุก embed ในข้อความเดียวรวมกัน 6000 ตัวอักษร"', () => {
+  const card = (title: string, chars: number): Embed => ({ title, fields: [{ name: 'f', value: 'x'.repeat(chars) }] });
+  const chars = (chunk: Embed[]) => chunk.reduce((n, e) => n + embedChars(e), 0);
+
+  it('แบ่งเป็นหลายข้อความเมื่อรวมกันเกินงบ (เคยพัง 21 ก.ย.: 5 การ์ด match + เตือน = 6230 → HTTP 400)', () => {
+    const chunks = chunkEmbeds([card('a', 1300), card('b', 1330), card('c', 1110), card('d', 1120), card('e', 1140), card('f', 200)]);
+    expect(chunks.length).toBe(2);
+    expect(chunks.flat()).toHaveLength(6); // ไม่หายสักใบ
+    for (const c of chunks) expect(chars(c)).toBeLessThanOrEqual(6000);
+  });
+
+  it('ยังจำกัด 10 ใบต่อข้อความเหมือนเดิม', () => {
+    const chunks = chunkEmbeds(Array.from({ length: 12 }, (_, i) => card(`t${i}`, 10)));
+    expect(chunks.map((c) => c.length)).toEqual([10, 2]);
+  });
+
+  it('embed ใบเดียวที่เกินงบ → ตัด field ท้ายทิ้ง ไม่ใช่ส่งไม่ออกทั้งใบ', () => {
+    const huge: Embed = { title: 'ใหญ่', fields: Array.from({ length: 10 }, (_, i) => ({ name: `g${i}`, value: 'y'.repeat(1000) })) };
+    const clamped = clampEmbed(huge);
+    expect(embedChars(clamped)).toBeLessThanOrEqual(MESSAGE_CHAR_BUDGET);
+    expect(clamped.fields!.at(-1)!.value).toContain('ตัดไป');
+    for (const c of chunkEmbeds([huge, huge])) expect(chars(c)).toBeLessThanOrEqual(6000);
+  });
+
+  it('ตารางรอบใหม่ 5 วันของจริง → ทุกข้อความอยู่ในลิมิต', async () => {
+    const numerology = await loadNumerology();
+    const days = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25'];
+    const w = { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 5456, 8888, 9999], patterns: [{ name: 'เลขคู่สลับ', regex: '^(\\d)(\\d)\\1\\2$' }], digitSums: [9] };
+    const embeds = days.map((openDate, i) => matchEmbed(matchEntry({ vehicleType: 'car', openDate, prefix: '8ขช', from: i * 2000 + 1, to: (i + 1) * 2000, registerBy: '2026-10-21' }, w)!, numerology));
+    expect(embeds.reduce((n, e) => n + embedChars(e), 0)).toBeGreaterThan(6000); // ของจริงเกินแน่
+    const chunks = chunkEmbeds(embeds);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const c of chunks) expect(chars(c)).toBeLessThanOrEqual(6000);
+  });
+});

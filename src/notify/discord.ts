@@ -23,6 +23,8 @@ const FOOTER = 'dlt-plate-watcher · แจ้งเตือนอย่าง�
 /** ปลายทางการแจ้ง — webhook (บนเครื่อง) หรือ Discord REST ด้วย bot token (ดู rest.ts) · core.ts ไม่รู้ว่าเป็นแบบไหน */
 export interface Notifier {
   send(embeds: Embed[]): Promise<void>;
+  /** เรียกครั้งเดียวหลังส่งครบทุกข้อความ (restNotifier ใช้ย้ายแผงมาล่างสุด) */
+  done?(): Promise<void>;
   close?(): Promise<void>;
 }
 
@@ -141,6 +143,47 @@ export function fitField(lines: string[], unit: string, max = 1000): string {
     out.push(line); len += line.length + 1;
   }
   return out.join('\n') + (out.length < lines.length ? `\n…และอีก ${lines.length - out.length} ${unit}` : '');
+}
+
+/** ลิมิตข้อความเดียวของ Discord: 10 embed และ "ตัวอักษรของทุก embed รวมกัน" 6000 — เผื่อไว้ 200 เพราะนับฝั่ง Discord อาจต่างเล็กน้อย */
+export const MAX_EMBEDS_PER_MESSAGE = 10;
+export const MESSAGE_CHAR_BUDGET = 5800;
+
+/** ตัวอักษรที่ Discord นับต่อ embed — title + description + ชื่อ/ค่าของทุก field + footer */
+export function embedChars(e: Embed): number {
+  return (e.title?.length ?? 0) + (e.description?.length ?? 0) + (e.footer?.text.length ?? 0) +
+    (e.fields ?? []).reduce((sum, f) => sum + f.name.length + f.value.length, 0);
+}
+
+/** embed เดียวก็เกินงบแล้ว (เหตุผลเยอะ × เลขเยอะ) → ตัด field ท้าย ๆ ทิ้ง ดีกว่าส่งไม่ออกทั้งใบ */
+export function clampEmbed(e: Embed, budget = MESSAGE_CHAR_BUDGET): Embed {
+  if (embedChars(e) <= budget) return e;
+  const fields: NonNullable<Embed['fields']> = [];
+  let len = embedChars({ ...e, fields: [] }) + 40; // 40 = เผื่อบรรทัด "…ตัดไป N ช่อง"
+  for (const f of e.fields ?? []) {
+    if (len + f.name.length + f.value.length > budget) break;
+    fields.push(f); len += f.name.length + f.value.length;
+  }
+  const cut = (e.fields?.length ?? 0) - fields.length;
+  return { ...e, fields: [...fields, { name: '…', value: `ยาวเกินที่ Discord รับได้ · ตัดไป ${cut} ช่อง` }] };
+}
+
+/**
+ * แบ่ง embed เป็นข้อความ ๆ ให้พอดีทั้งจำนวน (10) และตัวอักษรรวม (6000)
+ * เคยพัง 21 ก.ย.: ตารางรอบใหม่ = 5 การ์ด match + เตือน รวม 6230 ตัวอักษร → Discord ตอบ 400 MAX_EMBED_SIZE_EXCEEDED
+ */
+export function chunkEmbeds(embeds: Embed[], budget = MESSAGE_CHAR_BUDGET): Embed[][] {
+  const out: Embed[][] = [];
+  let cur: Embed[] = [];
+  let len = 0;
+  for (const raw of embeds) {
+    const e = clampEmbed(raw, budget);
+    const n = embedChars(e);
+    if (cur.length && (cur.length >= MAX_EMBEDS_PER_MESSAGE || len + n > budget)) { out.push(cur); cur = []; len = 0; }
+    cur.push(e); len += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }
 
 /** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */

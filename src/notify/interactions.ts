@@ -11,8 +11,8 @@ import { todayBangkok } from '../thai-date.js';
 import {
   applyWishlistChange, BUTTON, clampReply, COMMAND, embedToText, formatHistory, MODAL, MODAL_TEXT, panelRows, parseNumbers, shareRow, wishlistChangeText,
 } from './actions.js';
-import { guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
-import { createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, type DiscordRest } from './rest.js';
+import { chunkEmbeds, guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
+import { createFollowup, createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, type DiscordRest } from './rest.js';
 
 // --- รูปร่างของ interaction เท่าที่ใช้ (ไม่ดึง discord-api-types มาเพื่อ 6 field) ---
 export const InteractionType = { PING: 1, APPLICATION_COMMAND: 2, MESSAGE_COMPONENT: 3, MODAL_SUBMIT: 5 } as const;
@@ -84,6 +84,20 @@ export async function sendPanel(deps: InteractionDeps): Promise<void> {
   await deps.store.logEvent({ kind: 'panel', payload: { messageId: msg.id } });
 }
 
+/**
+ * ตอบ embed หลายใบให้คนกด — ข้อความเดียวรับได้ 10 ใบ/6000 ตัวอักษร ที่เหลือต่อเป็น follow-up (ephemeral เหมือนกัน)
+ * ปุ่มอยู่ข้อความสุดท้ายใบเดียว จะได้ไม่มีปุ่ม 📤 ซ้ำกันหลายอัน
+ */
+async function replyEmbeds(rest: DiscordRest, i: Interaction, embeds: Embed[], components: unknown[]) {
+  const chunks = chunkEmbeds(embeds);
+  if (!chunks.length) chunks.push([]);
+  for (const [idx, chunk] of chunks.entries()) {
+    const body = { embeds: chunk, components: idx === chunks.length - 1 ? components : [] };
+    if (idx === 0) await editOriginal(rest, i.application_id, i.token, body);
+    else await createFollowup(rest, i.application_id, i.token, body);
+  }
+}
+
 export async function handleInteraction(i: Interaction, deps: InteractionDeps): Promise<InteractionResult> {
   const log = deps.log ?? console.log;
   const loadSched = deps.schedule ?? loadSchedule;
@@ -94,7 +108,8 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
     work: async () => {
       try {
         const out = await fn();
-        await editOriginal(deps.rest, i.application_id, i.token, typeof out === 'string' ? { content: clampReply(out) } : { embeds: out.embeds.slice(0, 10), components: out.components ?? [shareRow()] });
+        if (typeof out === 'string') await editOriginal(deps.rest, i.application_id, i.token, { content: clampReply(out) });
+        else await replyEmbeds(deps.rest, i, out.embeds, out.components ?? [shareRow()]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         log(`interaction พลาด: ${msg}`);
