@@ -63,3 +63,15 @@ describe('resolveConfig — ฐานจาก env หรือไฟล์ + wi
     await expect(resolveConfig({ configPath, store, env: { WATCH_CONFIG_JSON: '{oops' } })).rejects.toThrow('WATCH_CONFIG_JSON');
   });
 });
+
+// 21 ก.ย.: id ของ Discord ยาว 18–19 หลัก เกิน MAX_SAFE_INTEGER — ถ้าที่ไหนเผลอแปลงเป็น number จะเพี้ยนท้าย
+// (เกิดจริงกับ meta บน Postgres: jsonb โดน parse สองรอบ → ลบการ์ด/แผงผิดใบ) · ทุก store ต้องคืนค่าเป๊ะ
+describe('meta เก็บ id ของ Discord ได้ครบทุกหลัก', () => {
+  it('fileStore คืนค่าเท่าที่เขียนลงไปเป๊ะ ๆ', async () => {
+    const { store } = await tmp();
+    const id = '1551455948441124945';
+    expect(String(Number(id))).not.toBe(id); // เลขนี้เกินช่วงที่ number เก็บได้ — ผ่าน number เมื่อไหร่เพี้ยนทันที
+    await store.setMeta('dailyMessageId', id);
+    expect(await store.getMeta('dailyMessageId')).toBe(id);
+  });
+});

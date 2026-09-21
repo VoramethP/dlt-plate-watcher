@@ -7,9 +7,14 @@ import { events, meta, notified, wishlist } from './schema.js';
 
 export function supabaseStore(databaseUrl: string): Store {
   const { db, close } = createDb(databaseUrl);
+  /**
+   * อ่าน jsonb เป็น text ตรง ๆ (`#>> '{}'`) ห้ามให้ผ่าน JSON.parse
+   * เพราะ postgres-js parse jsonb มาให้แล้ว drizzle parse ซ้ำอีกรอบ → id ของ Discord (18 หลัก)
+   * กลายเป็น number ที่เกิน MAX_SAFE_INTEGER แล้วถูกปัดท้าย (…945 → …900) ลบข้อความผิดใบทั้งวัน (21 ก.ย.)
+   */
   const getMeta = async (key: string) => {
-    const row = await db.select({ v: meta.v }).from(meta).where(eq(meta.k, key)).limit(1);
-    return row[0] ? String(row[0].v) : undefined;
+    const row = await db.select({ v: sql<string>`${meta.v} #>> '{}'` }).from(meta).where(eq(meta.k, key)).limit(1);
+    return row[0]?.v ?? undefined;
   };
   const setMeta = async (key: string, value: string) => {
     await db.insert(meta).values({ k: key, v: value }).onConflictDoUpdate({ target: meta.k, set: { v: value } });
