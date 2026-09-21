@@ -24,8 +24,7 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 ## งานถัดไป
 
 1. **ผู้ใช้ตั้ง cron-job.org job ที่ 2** ยิง `/api/cron/check` ~09:30 — 21 ก.ย. cron ยิง 08:41 แต่ขนส่งอัปไฟล์ 08:44 (พลาด 3 นาที) · key กันซ้ำอยู่แล้ว ไม่ต้องแก้โค้ด
-2. ดูว่าหลัง deploy fix 6000 แล้ว กด 🔄 ได้การ์ด 5 ใบ + เตือน ครบเป็น 2 ข้อความ และแผงขยับครั้งเดียว
-3. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (Vercel)
+2. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (Vercel)
 3. บั๊กจากผู้ใช้: ดู Vercel › Logs (`npx vercel logs dlt-plate-watcher.vercel.app`) และตาราง `events` ใน Neon ก่อน · error ของ interaction ตอบกลับผู้กดแล้ว (`❌ bot พลาด: …`)
 
 ## กับดักที่เคยเจอ
