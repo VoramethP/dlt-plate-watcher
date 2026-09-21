@@ -148,6 +148,24 @@ describe('📣 การ์ดประจำวัน', () => {
     expect(d.calls.some((c) => c.method === 'DELETE' && c.path === '/channels/C/messages/499')).toBe(true);
   });
 
+  it('ลบไม่ผ่านด้วยเหตุอื่น → ตอบว่าไม่สำเร็จ + เก็บ id ไว้ลองใหม่ (ห้ามตอบ deleted:true ลอย ๆ)', async () => {
+    const d = await deps();
+    await sendDaily(d);
+    const broken = { ...d, rest: { request: async (method: string) => { if (method === 'DELETE') throw new Error('Discord DELETE /channels/*** → HTTP 403: Missing Permissions'); return undefined as never; } } };
+    const r = await clearDaily(broken);
+    expect(r.deleted).toBe(false);
+    expect(r.error).toContain('403');
+    expect(await d.store.getMeta('dailyMessageId')).toBe('500'); // ยังจำไว้
+  });
+
+  it('ข้อความหายไปแล้ว (404) → ถือว่าสำเร็จ ล้าง id ทิ้ง', async () => {
+    const d = await deps();
+    await sendDaily(d);
+    const gone = { ...d, rest: { request: async (method: string) => { if (method === 'DELETE') throw new Error('Discord DELETE /channels/C/messages/500 → HTTP 404: Unknown Message'); return undefined as never; } } };
+    expect(await clearDaily(gone)).toEqual({ deleted: true });
+    expect(await d.store.getMeta('dailyMessageId')).toBe('');
+  });
+
   it('23:50 ลบการ์ดประจำวัน · ไม่มีใบค้าง = ไม่ทำอะไร ไม่ error', async () => {
     const d = await deps();
     expect(await clearDaily(d)).toEqual({ deleted: false });

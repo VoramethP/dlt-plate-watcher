@@ -135,11 +135,23 @@ export async function sendDaily(deps: InteractionDeps): Promise<{ posted: boolea
   return { posted: true };
 }
 
-/** 🌙 จบวัน 23:50 — ลบการ์ดประจำวันทิ้งเพื่อรอใบของวันถัดไป · ไม่เจอ = ไม่ใช่ error (อาจโดน 🧹 ไปก่อน) */
-export async function clearDaily(deps: InteractionDeps): Promise<{ deleted: boolean }> {
+/**
+ * 🌙 จบวัน 23:50 — ลบการ์ดประจำวันทิ้งเพื่อรอใบของวันถัดไป
+ * ข้อความหายไปแล้ว (404) = สำเร็จ (อาจโดน 🧹 ไปก่อน) · พลาดด้วยเหตุอื่น **ต้องบอก** และเก็บ id ไว้ลองใหม่
+ * (เคยตอบ deleted:true ทั้งที่ลบไม่ผ่าน เพราะ .catch() กลืน error — 21 ก.ย.)
+ */
+export async function clearDaily(deps: InteractionDeps): Promise<{ deleted: boolean; error?: string }> {
   const id = await deps.store.getMeta(DAILY_KEY);
   if (!id) return { deleted: false };
-  await deleteMessage(deps.rest, deps.channelId, id).catch(() => undefined);
+  try {
+    await deleteMessage(deps.rest, deps.channelId, id);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/HTTP 404/.test(msg)) {
+      (deps.log ?? console.log)(`ลบการ์ดประจำวันไม่ได้: ${msg}`);
+      return { deleted: false, error: msg }; // ไม่ล้าง meta — 23:50 วันถัดไป (หรือการโพสต์ใบใหม่) จะลองอีกที
+    }
+  }
   await deps.store.setMeta(DAILY_KEY, '');
   await deps.store.logEvent({ kind: 'daily', payload: { cleared: true, messageId: id } });
   return { deleted: true };
