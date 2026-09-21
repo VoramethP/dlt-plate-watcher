@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { auctionIndex, loadAuctionRules, MANUAL_GROUP, splitAuction } from '../src/auction.js';
 import { matchEntry } from '../src/match.js';
 import { matchEmbed, wishlistEmbed } from '../src/notify/discord.js';
-import { planNotifications } from '../src/core.js';
-import type { Schedule, ScheduleEntry } from '../src/schedule/types.js';
+import type { ScheduleEntry } from '../src/schedule/types.js';
 
 const rules = await loadAuctionRules();
 const index = auctionIndex(rules);
@@ -73,17 +72,12 @@ describe('การ์ด 🎯 แยกเลขประมูลออกจ�
     expect(embed.fields!.find((f) => f.name.startsWith('เลขที่ระบุไว้'))!.value).not.toContain('8888');
   });
 
-  it('ทั้งวันมีแต่เลขประมูล → ไม่แจ้งเตือน (กดจองไม่ได้สักเลข) แต่ยังดูได้จากปุ่ม 🎯', () => {
-    const schedule: Schedule = { sourceFileId: 'F', version: 'v1', fetchedAt: '', entries: [entry] };
-    const config = {
-      scheduleFileId: 'F', vehicleType: 'car' as const,
-      wishlist: { numbers: [8888, 9999], patterns: [], digitSums: [], exclude: [], auction: [] },
-      reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] },
-    };
-    const plan = planNotifications(schedule, config, { notified: [] }, '2026-09-22', undefined, index);
-    expect(plan.some((p) => p.key.startsWith('match:'))).toBe(false);
-    // แต่ matchEntry ยังคืนการ์ดให้ปุ่ม 🎯 ใช้
-    expect(matchEntry(entry, config.wishlist, index)!.auction).toHaveLength(2);
+  it('ทั้งวันมีแต่เลขประมูล → ไม่มีเลขให้กดจอง แต่ปุ่ม 🎯 ยังแสดงให้เห็นว่ามีอะไรบ้าง', () => {
+    const onlyAuction = { numbers: [8888, 9999], patterns: [], digitSums: [], exclude: [], auction: [] };
+    const m = matchEntry(entry, onlyAuction, index)!;
+    expect(m.numbers).toHaveLength(0);
+    expect(m.auction).toHaveLength(2);
+    expect(matchEmbed(m).description).toContain('จองออนไลน์ได้ **0** เลข');
   });
 });
 
@@ -92,7 +86,7 @@ describe('📋 เลขที่เฝ้าอยู่ แยกช่อง�
     const config = {
       scheduleFileId: 'F', vehicleType: 'car' as const,
       wishlist: { numbers: [15, 8888, 9999], patterns: [], digitSums: [], exclude: [], auction: [] },
-      reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] },
+      reminders: { daysBeforeRegisterDeadline: [7, 1] },
     };
     const e = wishlistEmbed(config, {}, [entry], '2026-09-22', undefined, index);
     expect(e.fields![0].name).toBe('✅ จองออนไลน์ได้ (1)');

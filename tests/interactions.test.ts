@@ -176,24 +176,26 @@ describe('embed ยาวเกิน 6000 ตัวอักษรต่อข�
     d.config = async () => ({
       scheduleFileId: 'x'.repeat(24), vehicleType: 'car' as const,
       wishlist: { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 5456, 8888, 9999], patterns: [{ name: 'เลขคู่สลับ', regex: '^(\\d)(\\d)\\1\\2$' }], digitSums: [9] },
-      reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] },
+      reminders: { daysBeforeRegisterDeadline: [7, 1] },
     });
   };
   const bodies = (d: { calls: Array<{ method: string; path: string; body?: unknown }> }, method: string, path: string) =>
     d.calls.filter((c) => c.method === method && c.path === path).map((c) => c.body as { embeds?: Array<{ title: string }>; components?: unknown[] });
 
-  it('🔄 เช็คตอนนี้ → แยกเป็นหลายข้อความในช่อง แต่ย้ายแผงครั้งเดียว', async () => {
+  it('ส่งการ์ดยาว ๆ เข้าห้อง (preview) → แยกเป็นหลายข้อความ แต่ย้ายแผงครั้งเดียว', async () => {
     const d = await deps();
     await wide(d);
-    d.now = new Date('2026-09-21T01:00:00Z');
-    await run(d, button(COMMAND.check));
-    expect(d.patched().at(-1)?.content).toContain('🔄 เช็คแล้ว');
+    const { runPreview } = await import('../src/core.js');
+    const { restNotifier } = await import('../src/notify/rest.js');
+    const notifier = restNotifier(d.rest, { channelId: 'C', afterSend: () => sendPanel(d) });
+    const r = await runPreview(await d.config(), { store: d.store, notifier, schedule: async () => week, log: () => undefined });
+    expect(r.sent).toBe(5);
     const posts = bodies(d, 'POST', '/channels/C/messages');
     const panels = posts.filter((b) => b.embeds?.[0].title === '🏠 dlt-plate-watcher');
-    const notes = posts.filter((b) => !panels.includes(b));
-    expect(notes.length).toBeGreaterThan(1); // เคยยัดใบเดียวแล้วโดน 400
+    const cards = posts.filter((b) => !panels.includes(b));
+    expect(cards.length).toBeGreaterThan(1); // เคยยัดใบเดียวแล้วโดน 400 MAX_EMBED_SIZE_EXCEEDED
     expect(panels).toHaveLength(1); // แผงขยับครั้งเดียว ไม่ใช่ทุกข้อความ
-    expect(notes.flatMap((b) => b.embeds!)).toHaveLength(6); // 5 การ์ด + เตือนเปิดพรุ่งนี้ ครบ ไม่หาย
+    expect(cards.flatMap((b) => b.embeds!)).toHaveLength(5); // ครบ ไม่หาย
   });
 
   it('🎯 เลขในฝัน → PATCH ใบแรก แล้วต่อด้วย follow-up ephemeral · ปุ่มอยู่ข้อความสุดท้ายใบเดียว', async () => {

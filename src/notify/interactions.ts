@@ -10,9 +10,10 @@ import type { Schedule } from '../schedule/types.js';
 import { HISTORY_KINDS, type Actor, type Store } from '../store.js';
 import { todayBangkok } from '../thai-date.js';
 import {
-  applyWishlistChange, BUTTON, clampReply, COMMAND, embedToText, formatHistory, MODAL, MODAL_TEXT, panelRows, parseNumbers, shareRow, wishlistChangeText,
+  applyWishlistChange, BUTTON, clampReply, COMMAND, dailyRows, embedToText, formatHistory, MODAL, MODAL_TEXT, panelRows, parseNumbers, shareRow, wishlistChangeText,
 } from './actions.js';
-import { chunkEmbeds, guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
+import { chunkEmbeds, dailyEmbed, guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
+import { composeDaily } from '../daily.js';
 import { createFollowup, createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, type DiscordRest } from './rest.js';
 
 // --- รูปร่างของ interaction เท่าที่ใช้ (ไม่ดึง discord-api-types มาเพื่อ 6 field) ---
@@ -105,6 +106,43 @@ async function replyEmbeds(rest: DiscordRest, i: Interaction, embeds: Embed[], c
     if (idx === 0) await editOriginal(rest, i.application_id, i.token, body);
     else await createFollowup(rest, i.application_id, i.token, body);
   }
+}
+
+/** meta key ของการ์ดประจำวันใบล่าสุด — ใช้ลบตอน 23:50 หรือตอนโพสต์ใบใหม่ทับ */
+const DAILY_KEY = 'dailyMessageId';
+
+/**
+ * 📣 โพสต์การ์ดประจำวันเข้าห้อง (ทุกคนเห็น) — เรียกจาก cron 09:30
+ * ไม่โพสต์เมื่อ: ตารางหมดอายุ (ช่วงเลขไม่ใช่ของจริง) · วันนี้ไม่มีรอบเปิดของรถประเภทนี้ (เสาร์-อาทิตย์)
+ */
+export async function sendDaily(deps: InteractionDeps): Promise<{ posted: boolean; reason?: string }> {
+  const c = await deps.config();
+  const today = todayBangkok(deps.now);
+  const schedule = await (deps.schedule ?? loadSchedule)(c.scheduleFileId);
+  const made = composeDaily({
+    config: c, schedule, today,
+    numerology: await deps.numerology(),
+    auction: await auctionOf(deps, c),
+  });
+  if ('skip' in made) return { posted: false, reason: made.skip };
+
+  const old = await deps.store.getMeta(DAILY_KEY);
+  if (old) await deleteMessage(deps.rest, deps.channelId, old).catch(() => undefined); // ใบเมื่อวานค้างอยู่ก็เก็บให้
+  const msg = await createMessage(deps.rest, deps.channelId, { embeds: [made.embed], components: dailyRows() });
+  await deps.store.setMeta(DAILY_KEY, msg.id);
+  await deps.store.logEvent({ kind: 'daily', payload: { messageId: msg.id, date: today, mine: made.mine, suggested: made.suggested } });
+  await sendPanel(deps); // แผงลงมาล่างสุดตามเดิม
+  return { posted: true };
+}
+
+/** 🌙 จบวัน 23:50 — ลบการ์ดประจำวันทิ้งเพื่อรอใบของวันถัดไป · ไม่เจอ = ไม่ใช่ error (อาจโดน 🧹 ไปก่อน) */
+export async function clearDaily(deps: InteractionDeps): Promise<{ deleted: boolean }> {
+  const id = await deps.store.getMeta(DAILY_KEY);
+  if (!id) return { deleted: false };
+  await deleteMessage(deps.rest, deps.channelId, id).catch(() => undefined);
+  await deps.store.setMeta(DAILY_KEY, '');
+  await deps.store.logEvent({ kind: 'daily', payload: { cleared: true, messageId: id } });
+  return { deleted: true };
 }
 
 export async function handleInteraction(i: Interaction, deps: InteractionDeps): Promise<InteractionResult> {

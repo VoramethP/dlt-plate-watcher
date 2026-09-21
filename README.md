@@ -94,7 +94,13 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 4. กลับไป Developer Portal → **General Information → Interactions Endpoint URL** = `https://<app>.vercel.app/api/interactions` → Save (Discord จะยิง PING ทดสอบ ต้องขึ้นว่าบันทึกสำเร็จ)
 5. บนเครื่อง `npm run register` (ต้องมี `DISCORD_BOT_TOKEN` + `DISCORD_APP_ID` ใน `.env`) → พิมพ์ `/panel` ในช่องได้
 6. `vercel.json` ตั้ง Vercel Cron ยิง `api/cron/check` ทุกวัน 08:00 ไทยไว้แล้ว (แผน Hobby คลาดได้ ±59 นาที ยังทันก่อน 10:00)
-7. ปิง 09:50 ต้องตรงนาที → ใช้ [cron-job.org](https://cron-job.org) (ฟรี): URL `https://<app>.vercel.app/api/cron/ping` · เวลา 09:50 Asia/Bangkok ทุกวัน · header `Authorization: Bearer <CRON_SECRET>`
+7. เวลาที่ต้องตรงนาทีใช้ [cron-job.org](https://cron-job.org) (ฟรี) ทุก job ใส่ header `Authorization: Bearer <CRON_SECRET>` · Asia/Bangkok ทุกวัน
+
+   | เวลา | URL | ทำอะไร |
+   |---|---|---|
+   | 09:30 | `/api/cron/daily` | เช็คตาราง + โพสต์การ์ดประจำวัน |
+   | 09:50 | `/api/cron/ping` | 🚦 อีก 10 นาทีเปิดจอง |
+   | 23:50 | `/api/cron/daily-clear` | ลบการ์ดประจำวันทิ้ง |
 
 ทดสอบ: พิมพ์ `/panel` → กดทุกปุ่ม · ยิง `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>.vercel.app/api/cron/check` ดูว่าแจ้งเตือน + แผงย้ายมาล่างสุด
 
@@ -112,6 +118,17 @@ Discord ยิง interaction มาที่ `api/interactions` (ตรวจ�
 
 [`numerology.json`](numerology.json) รวบรวมตารางค่าตัวอักษร ผลรวม และคู่เลข จากแหล่งเผยแพร่สาธารณะ 6 แหล่ง (รายชื่อในไฟล์) โดยจดว่าแต่ละรายการมาจากแหล่งไหน การ์ดเลขในฝันจะมีส่วน 🔮 จัดกลุ่มเลขและบอกจำนวนแหล่งที่เห็นตรงกัน
 ยังคงเป็นความเชื่อ ไม่ใช่ข้อเท็จจริง · แก้ได้ทุกช่อง · ลบไฟล์ทิ้งถ้าไม่ต้องการ
+
+## 📣 การ์ดประจำวัน
+
+ทุกวันที่มีรอบเปิดจอง **09:30 bot โพสต์การ์ดใบเดียวเข้าห้อง (ทุกคนเห็น)** แล้ว **ลบตัวเองตอน 23:50** เพื่อรอใบของวันถัดไป
+
+- 🎯 เลขใน wishlist ของคุณที่เปิดวันนี้ (ของคุณมาก่อนของ bot เสมอ)
+- เลขที่ bot คัดให้จากช่วงของวันนั้น **สายละ 3 เลข** ตาม [`numerology.json`](numerology.json) พร้อมเหตุผลและจำนวนแหล่งที่ตำราตรงกัน
+  — ตัดเลขประมูล เลขที่ตำราบอกให้เลี่ยง และผลรวมเกรด "ไม่ดีนัก" ออกแล้ว
+- 🔜 รอบพรุ่งนี้ + ของที่ต้องเตรียม · ปุ่ม 🔢 ใต้การ์ดกดเพิ่มเลขที่ถูกใจเข้า wishlist ได้ทันที
+
+ดูหน้าตาบนเครื่องก่อนได้: `npm run dev -- daily` · รายละเอียด: [ADR-0007](docs/adr/0007-daily-card-replaces-per-day-notifications.md)
 
 ## 🔨 เลขที่ขนส่งกันไว้ประมูล — จองออนไลน์ไม่ได้
 
@@ -155,6 +172,7 @@ bot จะ **ไม่แจ้งให้ไปกดจอง** เลขพ�
 ```
 schedule            พิมพ์ตารางเปิดจองรอบปัจจุบัน
 match               พิมพ์เลขใน wishlist ที่จะเปิดจองรอบนี้
+daily               พิมพ์การ์ดประจำวันของวันนี้ (ตัวที่ cron 09:30 โพสต์)
 check               ดึงตาราง + ส่งแจ้งเตือนรายการใหม่เข้า Discord
 preview             ส่ง match ของรอบนี้ทันทีโดยไม่สน state (ดูหน้าตาข้อความ)
 
@@ -181,7 +199,8 @@ npm run db:copy     คัดลอก 4 ตารางจาก OLD_DATABASE_U
 
 ```
 api/
-  interactions.ts     Interactions Endpoint (ตรวจ Ed25519 → route) · cron/check.ts 08:00 · cron/ping.ts 09:50
+  interactions.ts     Interactions Endpoint (ตรวจ Ed25519 → route)
+  cron/check.ts       08:00 · cron/daily.ts 09:30 · cron/ping.ts 09:50 · cron/daily-clear.ts 23:50
 src/
   cli.ts              จุดเข้าบนเครื่อง · webhook เท่านั้น
   app.ts              ประกอบของจาก env สำหรับ api/ (คู่ของ cli.ts)
@@ -191,6 +210,8 @@ src/
   db/                 schema.ts (Drizzle) · client.ts · store.ts (Supabase)
   match.ts            จับ wishlist กับช่วงเลขที่เปิด · แยกเลขประมูลออกจากเลขที่จองได้
   auction.ts          เลขที่ขนส่งกันไว้ประมูล (auction-rules.json + ที่ผู้ใช้ทำเครื่องหมายเอง)
+  suggest.ts          ให้คะแนนเลขในช่วงของวันนั้นจาก numerology.json → เลขที่ bot เสนอ
+  daily.ts            ประกอบการ์ดประจำวัน (ไม่แตะ Discord · CLI ใช้พรีวิวได้)
   numerology.ts       เลขศาสตร์: ผลรวมทั้งป้าย + คู่เลข → สาย (ตาราง numerology.json แก้ได้)
   state.ts            รูปไฟล์ .state/notified.json
   thai-date.ts        พ.ศ./ชื่อเดือนไทย ↔ ISO · เวลาไทย
@@ -207,7 +228,7 @@ docs/adr/             เหตุผลของการตัดสินใ�
 ```
 
 ```bash
-npm test              # 99 tests
+npm test              # 107 tests
 npm run typecheck
 ```
 

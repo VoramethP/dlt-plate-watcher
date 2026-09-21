@@ -81,6 +81,9 @@ export const BTN = {
 /** ใต้การ์ดแจ้งเตือน: เหลือแค่ปุ่มที่เกี่ยวกับการ์ดนั้น (ทำอย่างอื่นไปที่ landing panel ล่างสุด) */
 export const NOTIFY_BUTTONS = [BTN.share, BTN.web];
 export const buttonRows = () => rowsOf(NOTIFY_BUTTONS);
+/** ใต้การ์ดประจำวัน: เห็นเลขถูกใจแล้วเพิ่มเข้า wishlist ได้ทันที ไม่ต้องเลื่อนไปหาแผง */
+export const DAILY_BUTTONS = [BTN.addNumber, BTN.share, BTN.web];
+export const dailyRows = () => rowsOf(DAILY_BUTTONS);
 export const shareRow = () => ({ type: 1 as const, components: [BTN.share] });
 
 /** landing panel: แถว "ทำ" + แถว "ดู" */
@@ -242,6 +245,7 @@ export function describeEvent(e: StoredEvent): string {
     case 'ping': return `🚦 ปิงก่อนเปิดจอง ${p.sent ?? 0} รายการ`;
     case 'check': return `🔄 ${who}เช็ค · ส่งใหม่ ${p.sent ?? 0}`;
     case 'panel': return '🏠 โพสต์แผงใหม่';
+    case 'daily': return p.cleared ? '🌙 ลบการ์ดประจำวัน (จบวัน)' : `📣 การ์ดประจำวัน ${p.date ?? ''} · เลขในฝัน ${p.mine ?? 0} · เสนอ ${p.suggested ?? 0}`;
     default: return e.kind;
   }
 }

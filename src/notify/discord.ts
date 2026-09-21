@@ -8,6 +8,7 @@ import { matchSchedule } from '../match.js';
 import type { Config } from '../config.js';
 import { bestSumNumbers, EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
 import { auctionIndex, type AuctionIndex } from '../auction.js';
+import type { SuggestResult } from '../suggest.js';
 
 export interface Embed {
   title: string;
@@ -233,20 +234,72 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
   };
 }
 
-export function reminderEmbed(kind: 'open' | 'deadline', e: ScheduleEntry, daysLeft: number): Embed {
-  return kind === 'open'
-    ? {
-        title: `⏰ อีก ${daysLeft} วัน จะเปิดจอง ${rangeLine(e)}`,
-        description: `${formatThaiDate(e.openDate)} เวลา 10:00 น.\nเตรียม: แอป ThaID ล็อกอินได้ · เลขตัวถัง · ชื่อ-นามสกุลตรงบัตร`,
-        color: COLOR.warn,
-        footer: { text: FOOTER },
-      }
-    : {
-        title: `⚠️ อีก ${daysLeft} วัน หมดเขตจดทะเบียนเลขหมวด ${e.prefix}`,
-        description: `ต้องจดทะเบียนภายใน ${formatThaiDate(e.registerBy)} ไม่งั้นเลขที่จองได้จะหลุด`,
-        color: COLOR.warn,
-        footer: { text: FOOTER },
-      };
+export interface DailyInfo {
+  config: Config;
+  /** แถวของวันนี้ (รถประเภทผู้ใช้) */
+  entry: ScheduleEntry;
+  today: string;
+  /** เลขใน wishlist ที่เปิดวันนี้ — null = ไม่มี */
+  mine?: Match | null;
+  suggest: SuggestResult;
+  /** วันเปิดถัดไปในตารางชุดนี้ · null = สัปดาห์นี้หมดแล้ว */
+  tomorrow?: { entry: ScheduleEntry; mine: number } | null;
+}
+
+/**
+ * 📣 การ์ดประจำวัน — โพสต์ 09:30 ทุกวันที่มีรอบเปิด ทุกคนในห้องเห็น แล้วลบตัวเอง 23:50
+ * ของผู้ใช้มาก่อนของ bot เสมอ · ปิดท้ายด้วยรอบพรุ่งนี้ (แทนข้อความ ⏰ เตือนล่วงหน้าที่ยุบมารวมไว้ตรงนี้)
+ */
+export function dailyEmbed(info: DailyInfo): Embed {
+  const { entry: e, suggest } = info;
+  const mineNumbers = info.mine?.numbers ?? [];
+  const fields: NonNullable<Embed['fields']> = [];
+
+  if (mineNumbers.length) {
+    const lines = mineNumbers.map((n) => `\`${n}\` ${info.mine!.reasons.get(n)!.join(' · ')}`);
+    fields.push({ name: `🎯 เลขในฝันของคุณที่เปิดวันนี้ (${mineNumbers.length})`, value: fitField(lines, 'เลข') });
+  }
+
+  for (const { group, picks } of suggest.groups) {
+    const lines = picks.map((s) => {
+      const via = s.groups.find((g) => g.group.name === group.name)!;
+      const also = s.groups.filter((g) => g.group.name !== group.name).map((g) => g.group.emoji).join('');
+      const votes = via.votes > 1 ? ` · ${via.votes} แหล่งตรงกัน` : '';
+      const grade = s.grade ? ` · ผลรวม ${s.sum} ${s.grade}` : '';
+      return `\`${s.n}\` ${via.via.join(' · ')}${votes}${grade}${also ? ` · ${also}` : ''}`;
+    });
+    fields.push({ name: `${group.emoji} ${group.name}`, value: fitField(lines, 'เลข', 900) });
+  }
+
+  if (!fields.length) fields.push({ name: 'วันนี้', value: 'ไม่มีเลขที่เข้าเกณฑ์ในช่วงนี้ · กด 📅 ดูวันอื่น' });
+
+  const t = info.tomorrow;
+  fields.push({
+    name: '🔜 พรุ่งนี้',
+    value: t
+      ? `เปิด **${t.entry.prefix}** ${t.entry.from}–${t.entry.to} · ${formatThaiDateShort(t.entry.openDate)}${t.mine ? ` · เลขในฝันคุณ **${t.mine}** เลข` : ''}\nเตรียม: แอป ThaID ล็อกอินได้ · เลขตัวถัง · ชื่อ-นามสกุลตรงบัตร`
+      : 'สัปดาห์นี้หมดแล้ว · ตารางรอบใหม่ออกเช้าวันจันทร์',
+  });
+
+  const extra = suggest.eligible - suggest.groups.reduce((n, g) => n + g.picks.length, 0);
+  return {
+    title: `📣 เลขน่าสนใจวันนี้ · ${formatThaiDate(e.openDate)}`,
+    description: `${VEHICLE_LABEL[e.vehicleType]}\nวันนี้เปิด **${e.prefix}** ${e.from}–${e.to} เวลา 10:00–16:00 น. · จองออนไลน์ได้ **${suggest.bookable}** เลข${suggest.auction ? ` · 🔨 กันไว้ประมูล ${suggest.auction}` : ''}\n` +
+      `-# bot คัดจากตารางเลขศาสตร์ใน numerology.json (ตัดเลขที่ตำราบอกว่าควรเลี่ยงออกแล้ว)${extra > 0 ? ` · เข้าเกณฑ์ทั้งหมด ${suggest.eligible} เลข` : ''} — ความเชื่อ ไม่ใช่ข้อเท็จจริง`,
+    color: mineNumbers.length ? COLOR.match : COLOR.info,
+    fields,
+    footer: { text: FOOTER },
+  };
+}
+
+/** ⚠️ ใกล้หมดเขตจดทะเบียน — เตือนก่อนเปิดจองย้ายไปอยู่ช่อง "🔜 พรุ่งนี้" ของการ์ดประจำวันแล้ว (ADR-0007) */
+export function reminderEmbed(kind: 'deadline', e: ScheduleEntry, daysLeft: number): Embed {
+  return {
+    title: `⚠️ อีก ${daysLeft} วัน หมดเขตจดทะเบียนเลขหมวด ${e.prefix}`,
+    description: `ต้องจดทะเบียนภายใน ${formatThaiDate(e.registerBy)} ไม่งั้นเลขที่จองได้จะหลุด`,
+    color: COLOR.warn,
+    footer: { text: FOOTER },
+  };
 }
 
 export interface PanelInfo {
@@ -303,7 +356,7 @@ export function guideEmbeds(): Embed[] {
   return [
     {
       title: '❓ คู่มือปุ่ม — ข้อความแจ้งเตือน',
-      description: 'ใต้การ์ดแจ้งเตือนมีแค่ 📤 แชร์เลข กับ 🌐 เข้าสู่เว็บไซต์ · ปุ่มอื่นอยู่ที่ landing panel ล่างสุดของช่อง',
+      description: '📣 **การ์ดประจำวัน** โพสต์ 09:30 ทุกวันที่มีรอบเปิดจอง: เลขในฝันของคุณที่เปิดวันนี้ + เลขที่ bot คัดให้จากช่วงของวันนั้น (สายละ 3) + รอบพรุ่งนี้ · **ลบตัวเอง 23:50** เพื่อรอใบวันถัดไป\nใต้การ์ดมี 🔢 เพิ่มเลขที่ถูกใจ · 📤 แชร์เลข · 🌐 เข้าสู่เว็บไซต์ · ปุ่มอื่นอยู่ที่ landing panel ล่างสุดของช่อง',
       color: COLOR.match,
       fields: [
         { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 4 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ไม่อยากได้** ตัดเลขออกจากทุกรูปแบบ (จองได้แล้ว / ไม่ชอบ) · **🔨 กดจองไม่ได้** เลขที่ขนส่งกันไว้ประมูล · **ลบ** ออกจากรายการ\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม ใครเล็งไว้ก่อน และ 💡 ถ้ารูปแบบครอบอยู่แล้ว\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
@@ -319,7 +372,7 @@ export function guideEmbeds(): Embed[] {
       color: COLOR.info,
       fields: [
         { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule` · ตารางเปิดจองทั้ง 3 ประเภทรถ วันไหนหมวดอะไร ช่วงเลขเท่าไหร่ จดภายในวันไหน' },
-        { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน · เลขที่ต้องประมูลแยกอยู่ช่อง 🔨 ท้ายการ์ด' },
+        { name: '🎯 เลขในฝันรอบนี้', value: '= `npm run match` · เลขใน wishlist ที่จะเปิดจองสัปดาห์นี้ พร้อมเหตุผลว่าตรงเงื่อนไขไหน · เลขที่ต้องประมูลแยกอยู่ช่อง 🔨 ท้ายการ์ด\nbot ไม่ยิงการ์ดนี้เข้าห้องอัตโนมัติแล้ว — การ์ดประจำวัน 📣 ทำหน้าที่แทน กดเองเมื่อไหร่ก็ได้' },
         { name: '🔄 เช็คตอนนี้', value: '= `npm run check` · ดึงตารางล่าสุดแล้วส่งแจ้งเตือนเฉพาะที่ยังไม่เคยส่ง (ปกติทำเองทุกวัน 08:00)' },
         { name: '📜 ดูประวัติแชต', value: 'เหตุการณ์ล่าสุด 15 รายการ: bot แจ้งอะไร ใครเพิ่ม/ลบเลขไหน ใครลบแชต (ล่าสุดก่อน) เห็นเฉพาะคุณ' },
         { name: '❓ คู่มือ', value: 'ข้อความนี้' },

@@ -10,7 +10,7 @@ Discord bot เฝ้าตาราง PDF เปิดจองเลขทะ
 ## ตอนนี้อยู่ตรงไหน
 
 **Phase 6 ขึ้นจริง · Vercel Cron ยืนยันแล้ว 21 ก.ย. 08:41** — `https://dlt-plate-watcher.vercel.app` · Interactions Endpoint + `/panel` + ทุกปุ่มผ่านบน Discord จริง · cron-job.org 09:50 · `watch` เก่าบน Mac ปิดแล้ว
-**เลขประมูล 301 เลข/หมวด แยกช่อง 🔨 แล้ว (ADR-0006)** — pattern เลขสวยเกือบทั้งหมดคือเลขที่จองออนไลน์ไม่ได้
+**เลขประมูล 301 เลข/หมวด แยกช่อง 🔨 (ADR-0006)** · **การ์ดประจำวัน 📣 09:30 ลบเอง 23:50 แทนการแจ้งรายวัน (ADR-0007)**
 state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · ADR-0005 › หมายเหตุ) 4 ตาราง `notified` `wishlist` `meta` `events` · CLI + webhook + `.state/` ยังเป็น fallback · 89 เทส
 **push `main` = deploy production เอง** (Vercel ต่อ GitHub แล้ว) · env ใส่ผ่าน CLI ครบ 6 ตัว
 
@@ -25,13 +25,14 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 
 ## งานถัดไป
 
-1. **ผู้ใช้ตั้ง cron-job.org job ที่ 2** ยิง `/api/cron/check` ~09:30 — 21 ก.ย. cron ยิง 08:41 แต่ขนส่งอัปไฟล์ 08:44 (พลาด 3 นาที) · key กันซ้ำอยู่แล้ว ไม่ต้องแก้โค้ด
-2. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (Vercel)
+1. **ผู้ใช้ต้องแก้ cron-job.org**: job 09:30 → `/api/cron/daily` (จากเดิม `/api/cron/check`) + เพิ่ม job 23:50 → `/api/cron/daily-clear`
+2. พรุ่งนี้เช้าดูว่าการ์ดประจำวันโผล่จริงตอน 09:30 และหายตอน 23:50 (`events` kind `daily`)
+3. ค่อยทำ: drawio หน้า 06 เพิ่มวิธี D (Vercel) · หน้า 01–07 ยังเป็นภาพก่อนมีการ์ดประจำวัน
 3. บั๊กจากผู้ใช้: ดู Vercel › Logs (`npx vercel logs dlt-plate-watcher.vercel.app`) และตาราง `events` ใน Neon ก่อน · error ของ interaction ตอบกลับผู้กดแล้ว (`❌ bot พลาด: …`)
 
 ## กับดักที่เคยเจอ
 
-- **Vercel Hobby cron: วันละครั้งต่อ job, คลาด ±59 นาที** → 09:50 ใช้ cron-job.org
+- **Vercel Hobby cron: วันละครั้งต่อ job, คลาด ±59 นาที** → เวลาที่ต้องตรงอยู่บน cron-job.org ทั้งหมด (09:30 daily · 09:50 ping · 23:50 daily-clear)
 - **Vercel ไม่มี framework ต้องมี `public/`** ไม่งั้น "No Output Directory" · `vercel link` เขียน `.env*` ลง .gitignore (กลบ .env.example) → แก้เป็น `.env.local`
 - **embed field ต้องนับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด** — 📋 พังบน Discord จริงเพราะเลขศาสตร์ทำให้เกิน 1024 (`fitField`)
 - **ข้อความเดียว: ทุก embed รวมกันห้ามเกิน 6000 ตัวอักษร** (ไม่ใช่แค่ 10 ใบ) — ตารางรอบใหม่ 5 วัน = 6230 → 400 · แบ่งด้วย `chunkEmbeds` · ephemeral ที่ยาวต่อด้วย `createFollowup`
@@ -41,10 +42,8 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 - **scratchpad ไม่มี package.json/node_modules** → สคริปต์ที่ใช้ package ต้องอยู่ใน `scripts/`
 - **WAF ขนส่ง (F5)** ปฏิเสธทุก UA ที่ไม่ใช่ browser → ผู้ใช้ใส่ file id เอง + stale detection
 - **pdf.js แยก "8" กับ "ขจ"** → `ROW_RE` ใช้ `(\d)\s*([ก-ฮ]{1,3})`
-- **stale ต้องไม่ตัด deadline reminder** · **key ของ match มี hash ของ wishlist** · **ไฟล์ .json ท้ายรีโปต้องอยู่ใน `vercel.json › includeFiles`**
+- **stale ต้องไม่ตัด deadline reminder** · **ไฟล์ .json ท้ายรีโปต้องอยู่ใน `vercel.json › includeFiles`** · **modal label ≤45 ตัวอักษร ไม่งั้น "ไม่ตอบสนอง"**
 - **webhook เคยหลุดเข้า `.env.example`** → เทส repo-hygiene · stage by name เท่านั้น
-- **modal label > 45 ตัวอักษร** → "ไม่ตอบสนอง" · Discord ยืดปุ่มไม่ได้ → แถวเดียว ≤5 · Pin Messages เป็นสิทธิ์แยก
-- **preview/check ต้องไม่โพสต์แผงซ้อน** → `done()` เฉพาะ cron/🔄
 - **"เลขสวย" ที่ผู้ใช้ตั้ง pattern = ชุดเดียวกับที่ขนส่งกันไว้ประมูล** — เลขตอง/คู่สลับทั้งกลุ่มจองออนไลน์ไม่ได้ · การ์ดบางลงคือถูกแล้ว
 - **แก้ไฟล์ replace ทีละบล็อก** ไม่ slice ระหว่าง marker · python heredoc มีไทยใส่ `# -*- coding: utf-8 -*-`
 

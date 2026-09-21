@@ -75,11 +75,12 @@ CLI ตัวเล็ก ๆ ที่โหลด PDF ตารางเปิ
 ## คำสั่งที่ใช้บ่อย
 
 ```bash
-npm test                          # vitest 99 เทส (มี PDF จริงเป็น fixture · ไม่แตะเครือข่าย)
+npm test                          # vitest 107 เทส (มี PDF จริงเป็น fixture · ไม่แตะเครือข่าย)
 npm run typecheck
 npm run schedule                  # พิมพ์ตารางสัปดาห์นี้จาก Drive จริง
 npm run match                     # เลขใน wishlist ที่จะเปิดรอบนี้ ไม่ส่ง Discord
 npm run dev -- check --dry-run    # จำลอง check ครบวงจร พิมพ์ embed แทนส่ง (ไม่แตะ Supabase)
+npm run dev -- daily              # พิมพ์การ์ดประจำวันของวันนี้ (ตัวที่ cron 09:30 โพสต์เข้าห้อง)
 npm run check                     # ส่ง webhook จริง (อ่าน .env · มี DATABASE_URL → state บน Postgres)
 npm run db:generate               # schema.ts → drizzle/*.sql (ห้าม drizzle-kit push)
 npm run db:migrate                # รัน migration ขึ้น Postgres (Neon)
@@ -88,7 +89,7 @@ npm run register                  # ลงทะเบียน /panel ครั
 npm run gen:auction               # สร้าง auction-rules.json จากประกาศฯ (ดึง PDF เอง · ไม่ใช่ runtime)
 ```
 
-ปุ่ม + cron 08:00/09:50 รันบน Vercel (`api/`) — ไม่มี `watch` แล้ว (ADR-0005) · ทดสอบ handler ได้โดยเรียก `POST`/`GET` ตรง ๆ ด้วย `Request`
+ปุ่ม + cron 08:00/09:30/09:50/23:50 รันบน Vercel (`api/`) — ไม่มี `watch` แล้ว (ADR-0005) · ทดสอบ handler ได้โดยเรียก `POST`/`GET` ตรง ๆ ด้วย `Request`
 
 ---
 
@@ -110,10 +111,11 @@ npm run gen:auction               # สร้าง auction-rules.json จาก
 
 ```
 api/interactions.ts     Vercel: Interactions Endpoint — ตรวจ Ed25519 → handleInteraction → waitUntil(งานหลังตอบ)
-api/cron/check.ts       Vercel Cron 08:00 (vercel.json) · api/cron/ping.ts 09:50 (cron-job.org) · ทั้งคู่ต้องมี Bearer CRON_SECRET
+api/cron/check.ts       Vercel Cron 08:00 (vercel.json) · daily.ts 09:30 · ping.ts 09:50 · daily-clear.ts 23:50 (cron-job.org) · ทุกตัวต้องมี Bearer CRON_SECRET
 src/cli.ts              จุดเข้าบนเครื่อง: schedule · match · check · preview (webhook เท่านั้น ไม่มีปุ่ม)
 src/app.ts              createApp() ประกอบ store/rest/config จาก env สำหรับ api/ · cronAuthorized
 src/core.ts             loadSchedule → planNotifications → sendFresh → store.appendNotified + logEvent
+src/daily.ts            ประกอบการ์ดประจำวัน 📣 (composeDaily) · src/suggest.ts ให้คะแนนเลขที่ bot เสนอ (ADR-0007)
 src/config.ts           Zod schema · parseConfig · resolveConfig (ฐานจาก WATCH_CONFIG_JSON หรือไฟล์ + wishlist จาก store)
 src/store.ts            Store interface (loadState · appendNotified · loadWishlist · saveWishlist · meta · events) · fileStore · createStore
 src/db/schema.ts        Drizzle: notified · wishlist · meta · events (ทุกตาราง enableRLS ไม่มี policy)
@@ -134,7 +136,7 @@ src/notify/actions.ts   ตรรกะปุ่มแบบ pure: panelRows · 
 scripts/                migrate.ts · import-local.ts · copy-db.ts · register-commands.ts · gen-numerology.py
 drizzle/                migration SQL + meta (commit ด้วย)
 tests/                  vitest · tests/fixtures/schedule-2569-09-14.pdf คือ PDF จริงจากขนส่ง · interactions.test ใช้ fake DiscordRest
-docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase · 0006 เลขประมูล
+docs/adr/               0001 notify-only · 0002 stack · 0003 manual file id · 0004 bot เพื่อปุ่ม · 0005 Vercel + Supabase · 0006 เลขประมูล · 0007 การ์ดประจำวัน
 drawio/                 dlt-plate-watcher.drawio (9 หน้า) + png/ export · หน้า 99 raw = พื้นที่ของผู้ใช้
 .github/workflows/      ci.yml (test) — daily-check.yml ถูกลบ (ซ้ำกับ Vercel Cron)
 vercel.json             regions sin1 · cron 08:00 ไทย

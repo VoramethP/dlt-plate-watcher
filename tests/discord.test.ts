@@ -40,7 +40,7 @@ describe('คู่มือและแผงควบคุม', () => {
   });
   it('landing panel: headline เปลี่ยนตามสถานการณ์ และสรุป wishlist', () => {
     const entry = { vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' };
-    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555, 9999], patterns: [{ name: 'ตอง', regex: 'x' }], digitSums: [], exclude: [4444] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555, 9999], patterns: [{ name: 'ตอง', regex: 'x' }], digitSums: [], exclude: [4444] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
     const match = { entry, numbers: [5555], reasons: new Map([[5555, ['ตอง']]]), reasonOrder: ['ตอง'] };
     const base = { config, entries: [entry], matches: [match], version: 'Mon, 14 Sep 2026 01:58:13 GMT' };
     const upcoming = panelEmbed({ ...base, today: '2026-09-15' });
@@ -62,7 +62,7 @@ describe('scheduleEmbed แบบมี config/today', () => {
     { vehicleType: 'car', openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' },
     { vehicleType: 'van', openDate: '2026-09-14', prefix: '1นฎ', from: 2801, to: 2900, registerBy: '2026-10-14' },
   ] };
-  const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+  const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [5555], patterns: [], digitSums: [] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
   it('ทำเครื่องหมายผ่านแล้ว/วันนี้/กำลังมา และ 🎯 วันที่มีเลขในฝัน + รถของคุณ', () => {
     const e = scheduleEmbed(schedule, { config, today: '2026-09-14', title: 'T' });
     const car = e.fields!.find((f) => f.name.includes('← รถของคุณ'))!;
@@ -83,7 +83,7 @@ import { fitField, wishlistEmbed } from '../src/notify/discord.js';
 import { loadNumerology } from '../src/numerology.js';
 describe('wishlistEmbed', () => {
   it('แสดงทุกเลข สถานะกับตาราง เจ้าของ และ pattern', () => {
-    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 5555, 9999], patterns: [{ name: 'เลขตอง', regex: 'x' }], digitSums: [9] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 5555, 9999], patterns: [{ name: 'เลขตอง', regex: 'x' }], digitSums: [9] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
     const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 5001, to: 6500, registerBy: '2026-10-18' }, { vehicleType: 'car' as const, openDate: '2026-09-14', prefix: '8ขจ', from: 8001, to: 9999, registerBy: '2026-10-14' }];
     const e = wishlistEmbed(config, { 5555: 'somchai' }, entries, '2026-09-15');
     const v = e.fields![0].value;
@@ -94,7 +94,7 @@ describe('wishlistEmbed', () => {
   });
   it('มีเลขศาสตร์ครบทุกเลข field ต้องไม่เกิน 1024 (เคยพัง 20 ก.ย. บน Discord จริง)', async () => {
     const numerology = await loadNumerology();
-    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 1234, 5678, 9012, 3456], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const config = { scheduleFileId: 'F', vehicleType: 'car' as const, wishlist: { numbers: [15, 24, 42, 45, 51, 54, 56, 65, 1234, 5678, 9012, 3456], patterns: [], digitSums: [] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
     const entries = [{ vehicleType: 'car' as const, openDate: '2026-09-18', prefix: '8ขฉ', from: 1, to: 9999, registerBy: '2026-10-18' }];
     const e = wishlistEmbed(config, {}, entries, '2026-09-15', numerology);
     for (const f of e.fields!) expect(f.value.length).toBeLessThanOrEqual(1024);
@@ -102,7 +102,7 @@ describe('wishlistEmbed', () => {
     expect(fitField(['a'.repeat(600), 'b'.repeat(600), 'c'], 'เลข')).toBe('a'.repeat(600) + '\n…และอีก 2 เลข');
   });
   it('wishlist ว่างก็ยังแสดงได้', () => {
-    const config = { scheduleFileId: 'F', vehicleType: 'van' as const, wishlist: { numbers: [], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const config = { scheduleFileId: 'F', vehicleType: 'van' as const, wishlist: { numbers: [], patterns: [], digitSums: [] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
     expect(wishlistEmbed(config, {}, [], '2026-09-15').fields![0].value).toContain('ยังไม่มี');
   });
 });

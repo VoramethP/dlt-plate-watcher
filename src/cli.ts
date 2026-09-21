@@ -5,17 +5,21 @@ import { resolveConfig } from './config.js';
 import { loadSchedule, runCheck, runPreview, type Env } from './core.js';
 import { webhookNotifier, type Notifier } from './notify/discord.js';
 import { auctionIndex, loadAuctionRules, type AuctionIndex } from './auction.js';
+import { composeDaily } from './daily.js';
+import { loadNumerology } from './numerology.js';
+import { embedToText } from './notify/actions.js';
 import { matchSchedule } from './match.js';
 import { normalizeDriveFileId } from './schedule/fetch.js';
 import { VEHICLE_LABEL } from './schedule/types.js';
 import { createStore } from './store.js';
-import { formatThaiDate } from './thai-date.js';
+import { formatThaiDate, todayBangkok } from './thai-date.js';
 
 const HELP = `dlt-plate-watcher — เฝ้าตารางเปิดจองเลขทะเบียน แจ้งเตือนผ่าน Discord (ไม่จองแทน)
 
 คำสั่ง:
   schedule            พิมพ์ตารางเปิดจองรอบปัจจุบัน
   match               พิมพ์เลขใน wishlist ที่จะเปิดจองรอบนี้ (ไม่ส่ง Discord)
+  daily               พิมพ์การ์ดประจำวันของวันนี้ (ตัวที่ cron 09:30 โพสต์เข้าห้อง · ไม่ส่ง Discord)
   check               ดึงตาราง + ส่งแจ้งเตือนรายการใหม่เข้า Discord (ใช้กับ cron)
   preview             ส่ง match ของรอบนี้เข้า Discord ทันทีโดยไม่สน state (ไว้ดูหน้าตาข้อความ)
 
@@ -105,6 +109,15 @@ async function main() {
     case 'match': {
       const config = await getConfig();
       console.log(matchText(await loadSchedule(config.scheduleFileId), config, auctionIndex(await loadAuctionRules(), config.wishlist.auction)));
+      return;
+    }
+    case 'daily': {
+      const config = await getConfig();
+      const made = composeDaily({
+        config, today: todayBangkok(), schedule: await loadSchedule(config.scheduleFileId),
+        numerology: await loadNumerology(), auction: auctionIndex(await loadAuctionRules(), config.wishlist.auction),
+      });
+      console.log('skip' in made ? `ไม่โพสต์การ์ดวันนี้: ${made.skip}` : embedToText(made.embed));
       return;
     }
     case 'preview': {

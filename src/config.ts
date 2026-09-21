@@ -32,9 +32,9 @@ export const ConfigSchema = z.object({
     auction: z.array(z.number().int().min(1).max(9999)).default([]),
   }),
   reminders: z.object({
-    daysBeforeOpen: z.array(z.number().int().min(0)).default([1]),
+    // เตือนก่อนเปิดจองย้ายไปเป็นช่อง "🔜 พรุ่งนี้" ของการ์ดประจำวันแล้ว (ADR-0007) — ไม่มี daysBeforeOpen อีก
     daysBeforeRegisterDeadline: z.array(z.number().int().min(0)).default([7, 1]),
-  }).default({ daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] }),
+  }).default({ daysBeforeRegisterDeadline: [7, 1] }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

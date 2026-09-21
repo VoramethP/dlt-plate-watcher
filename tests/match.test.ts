@@ -36,7 +36,7 @@ describe('matchEntry', () => {
 describe('matchSchedule', () => {
   it('กรองเฉพาะประเภทรถของเรา', () => {
     const van: ScheduleEntry = { ...entry, vehicleType: 'van', prefix: '1นฎ', from: 2801, to: 2900 };
-    const config = { scheduleFileId: 'FILE', vehicleType: 'van' as const, wishlist: { numbers: [2888, 8888], patterns: [], digitSums: [] }, reminders: { daysBeforeOpen: [1], daysBeforeRegisterDeadline: [7, 1] } };
+    const config = { scheduleFileId: 'FILE', vehicleType: 'van' as const, wishlist: { numbers: [2888, 8888], patterns: [], digitSums: [] }, reminders: { daysBeforeRegisterDeadline: [7, 1] } };
     const ms = matchSchedule([entry, van], config);
     expect(ms).toHaveLength(1);
     expect(ms[0].numbers).toEqual([2888]);

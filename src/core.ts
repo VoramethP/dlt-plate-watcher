@@ -1,16 +1,16 @@
 // งานหลักที่ CLI และ cron เรียกใช้ — แยกจาก cli.ts เพื่อให้เทสได้โดยไม่ต้อง spawn process
 import { auctionIndex, loadAuctionRules, type AuctionIndex } from './auction.js';
 import type { Config } from './config.js';
-import { matchSchedule, type Match } from './match.js';
+import { matchSchedule } from './match.js';
 import { chunkEmbeds, matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
+// matchEmbed ยังใช้กับปุ่ม 🎯 และ preview · ไม่ได้ยิงเข้าห้องอัตโนมัติแล้ว
 import { fetchSchedulePdf, type Fetcher } from './schedule/fetch.js';
 import { parseSchedulePdf } from './schedule/parse.js';
 import type { Schedule, ScheduleEntry } from './schedule/types.js';
 import type { State } from './state.js';
 import { CRON_ACTOR, type Actor, type Store } from './store.js';
 import { daysBetween, todayBangkok } from './thai-date.js';
-import { loadNumerology, type Numerology } from './numerology.js';
-import { createHash } from 'node:crypto';
+import { loadNumerology } from './numerology.js';
 
 export interface Env {
   /** ไม่มี = โหมด dry-run พิมพ์ embed ออกจอแทน */
@@ -34,11 +34,6 @@ export async function loadSchedule(fileId: string, fetcher: Fetcher = fetch): Pr
   return { sourceFileId: fileId, version, fetchedAt: new Date().toISOString(), entries };
 }
 
-/** wishlist เปลี่ยน = ต้องแจ้งช่วงเดิมใหม่ จึงผูก key กับ hash ของ wishlist ด้วย */
-export const wishlistHash = (w: Config['wishlist']) =>
-  createHash('sha1').update(JSON.stringify([w.numbers, w.patterns, w.digitSums])).digest('hex').slice(0, 8);
-export const matchKey = (m: Match, w: Config['wishlist']) =>
-  `match:${m.entry.openDate}:${m.entry.prefix}:${m.entry.from}-${m.entry.to}:${wishlistHash(w)}`;
 export const reminderKey = (kind: string, e: ScheduleEntry, d: number) => `${kind}:${e.openDate}:${e.prefix}:${e.from}:${d}`;
 
 /** ตารางหมดอายุ = ทุกวันเปิดจองผ่านไปแล้ว → ต้องไปเอา file id ใหม่จากหน้าขนส่ง */
@@ -47,7 +42,7 @@ export function isStale(schedule: Schedule, today: string): boolean {
 }
 
 /** สิ่งที่ควรแจ้งวันนี้ โดยยังไม่ตัดของที่เคยแจ้งไปแล้ว */
-export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, numerology?: Numerology, auction?: AuctionIndex) {
+export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, auction?: AuctionIndex) {
   const out: Array<{ key: string; embed: Embed }> = [];
   const stale = isStale(schedule, today);
   const mine = schedule.entries.filter((e) => e.vehicleType === config.vehicleType);
@@ -59,18 +54,8 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
     if (state.lastScheduleVersion && state.lastScheduleVersion !== schedule.version) {
       out.push({ key: `schedule:${schedule.version}`, embed: scheduleEmbed(schedule) });
     }
-    for (const m of matchSchedule(schedule.entries, config, auction)) {
-      if (daysBetween(today, m.entry.openDate) < 0) continue; // ผ่านไปแล้ว ไม่ต้องแจ้ง
-      // ตรงเงื่อนไขแต่เป็นเลขประมูลล้วน = จองออนไลน์ไม่ได้สักเลข ไม่มีอะไรให้ทำ → ไม่กวน (ยังดูได้จากปุ่ม 🎯/📋) · ADR-0006
-      if (!m.numbers.length) continue;
-      out.push({ key: matchKey(m, config.wishlist), embed: matchEmbed(m, numerology) });
-    }
-    for (const e of mine) {
-      const untilOpen = daysBetween(today, e.openDate);
-      if (config.reminders.daysBeforeOpen.includes(untilOpen)) {
-        out.push({ key: reminderKey('open', e, untilOpen), embed: reminderEmbed('open', e, untilOpen) });
-      }
-    }
+    // การ์ด 🎯 รายวันและ ⏰ เตือนก่อนเปิด ย้ายไปอยู่ใน "การ์ดประจำวัน" 09:30 ใบเดียว (ADR-0007)
+    // ที่เหลือตรงนี้คือข้อความที่เกิดครั้งเดียวต่อสัปดาห์/ต่อรอบ ไม่ซ้ำกับการ์ดประจำวัน
   }
 
   for (const e of mine) {
@@ -109,7 +94,7 @@ export async function runCheck(config: Config, env: Env) {
   const state = await env.store.loadState();
 
   const auction = auctionIndex(await loadAuctionRules(), config.wishlist.auction);
-  const planned = planNotifications(schedule, config, state, today, await loadNumerology(), auction);
+  const planned = planNotifications(schedule, config, state, today, auction);
   const sent = await sendFresh(planned, state, env);
   log(`ตารางเวอร์ชัน ${schedule.version}: ${schedule.entries.length} แถว · ควรแจ้ง ${planned.length} · ส่งใหม่ ${sent.length}`);
 
