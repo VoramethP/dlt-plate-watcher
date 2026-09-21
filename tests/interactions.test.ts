@@ -158,6 +158,7 @@ import { redactPath } from '../src/notify/rest.js';
 describe('ข้อความ error ไม่รั่ว token ของ interaction', () => {
   it('redactPath ปิดส่วน /webhooks/<app>/<token>', () => {
     expect(redactPath('/webhooks/155050641/aW50ZXJhY3Rpb246MTU1/messages/@original')).toBe('/webhooks/***/messages/@original');
+    expect(redactPath('/webhooks/app/secret-token/messages/@original')).toBe('/webhooks/***/messages/@original'); // app id ไม่ใช่ตัวเลขก็ต้องปิด
     expect(redactPath('/channels/1/messages')).toBe('/channels/1/messages');
   });
 });
@@ -240,5 +241,31 @@ describe('ทำเครื่องหมายเลขประมูลเ�
     const text = d.patched().at(-1)!.content!;
     expect(text).toContain('🔨 **8888** เพิ่มแล้ว');
     expect(text).toContain('กลุ่ม "เลขสี่ตัวเหมือน" ขนส่งกันไว้ประมูล');
+  });
+});
+
+// 21 ก.ย.: กด 🧹 แล้ว cron โพสต์การ์ดตามติด → ลบแผงเก่าโดน 429 แล้วเงียบไป เหลือแผงค้างสองใบในห้อง
+describe('โดน rate limit (429)', () => {
+  it('รอตามที่ Discord บอกแล้วลองใหม่ครั้งเดียว ไม่เงียบหาย', async () => {
+    const { discordRest } = await import('../src/notify/rest.js');
+    const seen: string[] = [];
+    const slept: number[] = [];
+    let first = true;
+    const fetcher = (async (url: string, init: { method: string }) => {
+      seen.push(`${init.method} ${String(url).replace('https://discord.com/api/v10', '')}`);
+      if (first) { first = false; return new Response(JSON.stringify({ retry_after: 2 }), { status: 429 }); }
+      return new Response(null, { status: 204 });
+    }) as unknown as Parameters<typeof discordRest>[1];
+    const rest = discordRest('tok', fetcher, async (ms) => { slept.push(ms); });
+    await rest.request('DELETE', '/channels/C/messages/9');
+    expect(seen).toEqual(['DELETE /channels/C/messages/9', 'DELETE /channels/C/messages/9']);
+    expect(slept).toEqual([2000]);
+  });
+
+  it('ยังพลาดหลังลองใหม่ → โยน error ที่ไม่มี token ของ interaction', async () => {
+    const { discordRest } = await import('../src/notify/rest.js');
+    const fetcher = (async () => new Response('{"retry_after":1}', { status: 429 })) as unknown as Parameters<typeof discordRest>[1];
+    const rest = discordRest('tok', fetcher, async () => undefined);
+    await expect(rest.request('PATCH', '/webhooks/app/secret-token/messages/@original')).rejects.toThrow('/webhooks/***/messages/@original');
   });
 });

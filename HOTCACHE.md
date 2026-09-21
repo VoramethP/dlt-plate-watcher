@@ -37,6 +37,7 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 - **embed field ต้องนับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด** — 📋 พังบน Discord จริงเพราะเลขศาสตร์ทำให้เกิน 1024 (`fitField`)
 - **ข้อความเดียว: ทุก embed รวมกันห้ามเกิน 6000 ตัวอักษร** (ไม่ใช่แค่ 10 ใบ) — ตารางรอบใหม่ 5 วัน = 6230 → 400 · แบ่งด้วย `chunkEmbeds` · ephemeral ที่ยาวต่อด้วย `createFollowup`
 - **error ที่ส่งกลับในช่องห้ามมี path `/webhooks/<app>/<token>`** — เคยรั่ว token ของ interaction (`redactPath`)
+- **ลบข้อความถี่ ๆ โดน 429** (กด 🧹 แล้ว cron ตามติด) → `discordRest` รอ `retry_after` แล้วลองใหม่ 1 ครั้ง ไม่งั้นแผงค้างสองใบ
 - **pooler (Neon -pooler / Supabase 6543) ไม่รองรับ prepared statements** → `postgres(url, { prepare: false })` · migrate ใช้ตัว direct
 - **RLS เปิดไม่มี policy = ปิด Data API** โค้ดต่อตรงด้วย role เจ้าของตาราง จึงข้ามได้ — ตั้งใจ
 - **scratchpad ไม่มี package.json/node_modules** → สคริปต์ที่ใช้ package ต้องอยู่ใน `scripts/`

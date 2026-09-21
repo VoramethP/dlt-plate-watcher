@@ -10,14 +10,22 @@ export interface DiscordRest {
   request<T = unknown>(method: string, path: string, body?: unknown): Promise<T>;
 }
 
-export function discordRest(token: string, fetcher: Fetcher = fetch): DiscordRest {
+export function discordRest(token: string, fetcher: Fetcher = fetch, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))): DiscordRest {
+  const call = (method: string, path: string, body?: unknown) => fetcher(`${API}${path}`, {
+    method,
+    headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   return {
     async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-      const res = await fetcher(`${API}${path}`, {
-        method,
-        headers: { authorization: `Bot ${token}`, 'content-type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
+      let res = await call(method, path, body);
+      // 429 = ยิงถี่เกิน (ลบข้อความมีลิมิตเข้มเป็นพิเศษ) — รอตามที่ Discord บอกแล้วลองใหม่ครั้งเดียว
+      // เคยทำแผงเก่าค้างในห้อง 21 ก.ย.: กด 🧹 แล้ว cron ลบแผงตามไม่ทัน โดน 429 แล้วเงียบไป (catch)
+      if (res.status === 429) {
+        const wait = Number((await res.clone().json().catch(() => ({}))).retry_after ?? 1);
+        await sleep(Math.min(wait, 5) * 1000);
+        res = await call(method, path, body);
+      }
       // path ของ follow-up มี token ของ interaction — ห้ามโผล่ในข้อความ error ที่ส่งกลับไปในช่อง
       if (!res.ok) throw new Error(`Discord ${method} ${redactPath(path)} → HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
       if (res.status === 204) return undefined as T;
@@ -26,7 +34,8 @@ export function discordRest(token: string, fetcher: Fetcher = fetch): DiscordRes
   };
 }
 
-export const redactPath = (path: string) => path.replace(/^\/webhooks\/\d+\/[^/]+/, '/webhooks/***');
+/** ปิดทั้ง app id และ token — ไม่บังคับว่า app id ต้องเป็นตัวเลข เพื่อไม่ให้มีทางหลุดถ้ารูปแบบ path เปลี่ยน */
+export const redactPath = (path: string) => path.replace(/^\/webhooks\/[^/]+\/[^/]+/, '/webhooks/***');
 
 export interface MessageRef { id: string; author: { id: string }; type: number }
 
