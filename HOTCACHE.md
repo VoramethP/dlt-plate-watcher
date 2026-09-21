@@ -41,7 +41,6 @@ state บน **Neon Postgres** (ย้ายจาก Supabase 21 ก.ย. · AD
 - **pooler (Neon -pooler / Supabase 6543) ไม่รองรับ prepared statements** → `postgres(url, { prepare: false })` · migrate ใช้ตัว direct
 - **RLS เปิดไม่มี policy = ปิด Data API** โค้ดต่อตรงด้วย role เจ้าของตาราง จึงข้ามได้ — ตั้งใจ
 - **scratchpad ไม่มี package.json/node_modules** → สคริปต์ที่ใช้ package ต้องอยู่ใน `scripts/`
-- **WAF ขนส่ง (F5)** ปฏิเสธทุก UA ที่ไม่ใช่ browser → ผู้ใช้ใส่ file id เอง + stale detection
 - **pdf.js แยก "8" กับ "ขจ"** → `ROW_RE` ใช้ `(\d)\s*([ก-ฮ]{1,3})`
 - **stale ต้องไม่ตัด deadline reminder** · **ไฟล์ .json ท้ายรีโปต้องอยู่ใน `vercel.json › includeFiles`** · **modal label ≤45 ตัวอักษร ไม่งั้น "ไม่ตอบสนอง"**
 - **webhook เคยหลุดเข้า `.env.example`** → เทส repo-hygiene · stage by name เท่านั้น
