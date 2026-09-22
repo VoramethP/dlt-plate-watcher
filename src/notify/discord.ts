@@ -316,6 +316,9 @@ export interface PanelInfo {
   stale?: boolean;
 }
 
+/** ตารางเวลาที่โชว์บนแผง — แก้ที่นี่ที่เดียวเวลา cron เปลี่ยน (มีเทสกันลืม) */
+export const CRON_TIMES = 'รอบถัดไป 09:30 / ปิง 09:50 / ปิดวัน 23:50';
+
 const bkkTime = (d: Date) => d.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 /** 🏠 landing panel — อยู่ล่างสุดของช่องเสมอ ตอบ "ตอนนี้เป็นยังไง ต้องทำอะไร" โดยไม่ต้องกด */
@@ -343,7 +346,8 @@ export function panelEmbed(info: PanelInfo): Embed {
     color,
     fields: [
       { name: '📋 เฝ้าอยู่', value: `${summary}\n${nums || '(ยังไม่ระบุเลข · กด 🔢)'}` },
-      { name: '🧭 bot', value: `เช็คล่าสุด ${info.lastCheckAt ? bkkTime(info.lastCheckAt) : 'ยังไม่เช็ค'}\nรอบถัดไป 08:00 / ปิง 09:50`, inline: true },
+      // เวลาต้องตรงกับ job บน cron-job.org (ADR-0007) — ไม่มี Vercel Cron 08:00 แล้ว
+      { name: '🧭 bot', value: `เช็คล่าสุด ${info.lastCheckAt ? bkkTime(info.lastCheckAt) : 'ยังไม่เช็ค'}\n${CRON_TIMES}`, inline: true },
       { name: '📅 ตาราง', value: `${week}\n${info.version ? `อัปเดต ${info.version.replace(/:\d\d GMT$/, '')}` : 'โหลดไม่ได้'}`, inline: true },
       { name: 'ปุ่ม', value: 'แถวบน = ทำ · แถวล่าง = ดู · ทุกคำตอบเห็นเฉพาะคุณ · หาแผงไม่เจอพิมพ์ `/panel`' },
     ],

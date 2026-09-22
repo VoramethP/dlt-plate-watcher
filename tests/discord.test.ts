@@ -47,6 +47,8 @@ describe('คู่มือและแผงควบคุม', () => {
     expect(upcoming.description).toContain('⏳ เลขในฝันเปิดครั้งถัดไป **ศ. 18 ก.ย.** (อีก 3 วัน)');
     expect(JSON.stringify(upcoming)).toContain('2 เลข · 1 รูปแบบ · 🚫 1');
     expect(JSON.stringify(upcoming)).toContain('อัปเดต Mon, 14 Sep 2026 01:58');
+    // เวลาบนแผงต้องตรงกับ job จริงบน cron-job.org — เคยค้างอยู่ที่ "08:00" หลังย้าย cron (22 ก.ย.)
+    expect(upcoming.fields!.find((f) => f.name === '🧭 bot')!.value).toContain('รอบถัดไป 09:30 / ปิง 09:50 / ปิดวัน 23:50');
     expect(panelEmbed({ ...base, today: '2026-09-18' }).description).toContain('🔥 **วันนี้เปิดจอง**');
     expect(panelEmbed({ ...base, today: '2026-09-19' }).description).toContain('😴');
     expect(panelEmbed({ ...base, today: '2026-09-19', stale: true }).description).toContain('🗓️');
