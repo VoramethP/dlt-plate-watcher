@@ -11,7 +11,9 @@ import { HISTORY_KINDS, type Actor, type Store } from '../store.js';
 import { todayBangkok } from '../thai-date.js';
 import {
   applyWishlistChange, BUTTON, clampReply, COMMAND, dailyRows, embedToText, formatHistory, MODAL, MODAL_TEXT, panelRows, parseNumbers, shareRow, wishlistChangeText,
+  WON_MODAL, WON_TEXT, wonChangeText,
 } from './actions.js';
+import { applyWonChange, loadWon, parseDeadline, saveWon } from '../won.js';
 import { chunkEmbeds, dailyEmbed, guideEmbeds, matchEmbed, panelEmbed, scheduleEmbed, wishlistEmbed, type Embed } from './discord.js';
 import { composeDaily } from '../daily.js';
 import { botUserId, createFollowup, createMessage, deleteMessage, deleteOwnMessages, editOriginal, pinQuietly, restNotifier, sweepMessages, type DiscordRest } from './rest.js';
@@ -220,11 +222,12 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
         return `🔄 เช็คแล้ว · ควรแจ้ง ${r.planned.length} · ส่งใหม่ ${r.sent.length} รายการ`;
       });
       case BUTTON.addNumber: return { response: { type: ResponseType.MODAL, data: addNumberModal() } };
+      case BUTTON.wonNumber: return { response: { type: ResponseType.MODAL, data: wonModal() } };
       case BUTTON.showWishlist: return followUp(async () => {
         const c = await deps.config();
         const state = await deps.store.loadState();
         const entries = (await loadSched(c.scheduleFileId).catch(() => ({ entries: [] as Schedule['entries'] }))).entries.filter((e) => e.vehicleType === c.vehicleType);
-        return { embeds: [wishlistEmbed(c, state.owners ?? {}, entries, todayBangkok(deps.now), await deps.numerology(), await auctionOf(deps, c))] };
+        return { embeds: [wishlistEmbed(c, state.owners ?? {}, entries, todayBangkok(deps.now), await deps.numerology(), await auctionOf(deps, c), await loadWon(deps.store))] };
       });
       case BUTTON.share: {
         // ข้อความล้วนใน code block → desktop มีปุ่มคัดลอกมุมขวาบน · มือถือกดค้างเลือกคัดลอก
@@ -242,6 +245,32 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
       });
       default: return { response: ephemeral({ content: 'ปุ่มนี้ยังไม่ได้ต่อคำสั่ง' }) };
     }
+  }
+
+  if (i.type === InteractionType.MODAL_SUBMIT && i.data?.custom_id === WON_MODAL.id) {
+    return followUp(async () => {
+      const field = (id: string) => i.data?.components?.flatMap((row) => row.components).find((c) => c.custom_id === id)?.value?.trim() ?? '';
+      const got = parseNumbers(field(WON_MODAL.number));
+      const remove = parseNumbers(field(WON_MODAL.remove));
+      const rawDate = field(WON_MODAL.deadline);
+      const registerBy = rawDate ? parseDeadline(rawDate) : undefined;
+      if (rawDate && !registerBy) return `❌ อ่านวันที่ "${rawDate}" ไม่ออก · ใส่แบบ 26/10/2569 หรือ 2026-10-26 หรือ "26 ตุลาคม 2569"`;
+
+      const c = await deps.config();
+      const today = todayBangkok(deps.now);
+      // ตารางสัปดาห์นี้ใช้เดาหมวด/วันหมดเขตให้ (เคสปกติ: เพิ่งจองได้วันนี้) · โหลดไม่ได้ก็ยังบันทึกได้ถ้าผู้ใช้พิมพ์มาเอง
+      const entries = (await (deps.schedule ?? loadSchedule)(c.scheduleFileId).catch(() => ({ entries: [] as Schedule['entries'] })))
+        .entries.filter((e) => e.vehicleType === c.vehicleType);
+      const change = applyWonChange(await loadWon(deps.store), {
+        numbers: got.valid, remove: remove.valid, prefix: field(WON_MODAL.prefix) || undefined,
+        registerBy: registerBy ?? undefined, by: actor.name, now: new Date(deps.now ?? Date.now()).toISOString(), entries,
+      });
+      if (change.changed) {
+        await saveWon(deps.store, change.list);
+        await deps.store.logEvent({ kind: 'won', actor, payload: { added: change.added.map((w) => w.number), removed: change.removed.map((w) => w.number) } });
+      }
+      return wonChangeText(change, [...got.invalid, ...remove.invalid], today, c.reminders.daysBeforeRegisterDeadline);
+    });
   }
 
   if (i.type === InteractionType.MODAL_SUBMIT && i.data?.custom_id === MODAL.addNumber) {
@@ -272,6 +301,23 @@ export async function handleInteraction(i: Interaction, deps: InteractionDeps): 
   }
 
   return { response: ephemeral({ content: 'ไม่รู้จัก interaction นี้' }) };
+}
+
+/** modal ของปุ่ม 🏆 — ช่องหมวด/วันหมดเขตเว้นว่างได้ bot หาจากตารางสัปดาห์นี้ให้ (ADR-0008) */
+export function wonModal() {
+  const input = (custom_id: string, label: string, placeholder: string) => ({
+    type: 1, components: [{ type: 4, custom_id, label, style: 1, placeholder, max_length: 100, required: false }],
+  });
+  return {
+    custom_id: WON_MODAL.id,
+    title: WON_TEXT.title,
+    components: [
+      input(WON_MODAL.number, WON_TEXT.numberLabel, WON_TEXT.numberPlaceholder),
+      input(WON_MODAL.deadline, WON_TEXT.deadlineLabel, WON_TEXT.deadlinePlaceholder),
+      input(WON_MODAL.prefix, WON_TEXT.prefixLabel, WON_TEXT.prefixPlaceholder),
+      input(WON_MODAL.remove, WON_TEXT.removeLabel, WON_TEXT.removePlaceholder),
+    ],
+  };
 }
 
 /** modal 4 ช่อง (Discord รับสูงสุด 5) — ข้อความอยู่ใน MODAL_TEXT (มีเทสลิมิต 45/100 ตัวอักษร) · type 4 = text input · style 2 = paragraph */

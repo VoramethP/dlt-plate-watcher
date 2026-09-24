@@ -23,9 +23,19 @@ describe('planNotifications', () => {
     const plan = planNotifications(schedule, config, { notified: [] }, '2026-09-15');
     expect(plan.map((p) => p.key).some((k) => k.startsWith('schedule:'))).toBe(false);
   });
-  it('เตือนหมดเขตจดทะเบียน 7 วันก่อน', () => {
+  // ADR-0008: เตือนจดทะเบียนมาจากรายการที่ผู้ใช้กด 🏆 บอกเอง ไม่ใช่จากตารางรายสัปดาห์ (แถวนั้นหายก่อนถึงกำหนดเสมอ)
+  it('ไม่เตือนจดทะเบียนจากตาราง แม้แถวในตารางจะใกล้ครบกำหนด', () => {
     const plan = planNotifications(schedule, config, { notified: [] }, '2026-10-07');
-    expect(plan.map((p) => p.key)).toContain('deadline:2026-09-14:8ขจ:8001:7');
+    expect(plan.map((p) => p.key).some((k) => k.startsWith('deadline:'))).toBe(false);
+  });
+  it('เตือนจากรายการ "จองได้แล้ว" ตามวันที่ตั้งไว้ (7 และ 1 วัน) และหยุดเมื่อเลยกำหนด', () => {
+    const won = [{ prefix: '8ขช', number: 5456, registerBy: '2026-10-26', by: 'Hope', at: '' }];
+    const key = 'won:8ขช:5456:2026-10-26:7';
+    expect(planNotifications(schedule, config, { notified: [] }, '2026-10-19', undefined, won).map((p) => p.key)).toContain(key);
+    expect(planNotifications(schedule, config, { notified: [] }, '2026-10-25', undefined, won).map((p) => p.key)).toContain('won:8ขช:5456:2026-10-26:1');
+    for (const day of ['2026-10-20', '2026-10-26', '2026-10-27']) {
+      expect(planNotifications(schedule, config, { notified: [] }, day, undefined, won).map((p) => p.key).some((k) => k.startsWith('won:'))).toBe(false);
+    }
   });
 });
 
@@ -38,7 +48,9 @@ describe('ตารางหมดอายุ', () => {
     const plan = planNotifications(schedule, config, { notified: [], lastScheduleVersion: 'old' }, '2026-10-07');
     const keys = plan.map((p) => p.key);
     expect(keys).toContain('stale:FILE');
-    expect(keys).toContain('deadline:2026-09-14:8ขจ:8001:7');
     expect(keys.some((k) => k.startsWith('schedule:'))).toBe(false);
+    // ตารางค้างไม่ควรทำให้หยุดเตือนจดทะเบียน — กำหนดจดยังเดินอยู่
+    const won = [{ prefix: '8ขช', number: 5456, registerBy: '2026-10-14', by: '', at: '' }];
+    expect(planNotifications(schedule, config, { notified: [] }, '2026-10-07', undefined, won).map((p) => p.key)).toContain('won:8ขช:5456:2026-10-14:7');
   });
 });

@@ -9,6 +9,7 @@ import type { Config } from '../config.js';
 import { bestSumNumbers, EMPTY_NUMEROLOGY, groupNumbersByMeaning, meaningLine, type Numerology } from '../numerology.js';
 import { auctionIndex, type AuctionIndex } from '../auction.js';
 import type { SuggestResult } from '../suggest.js';
+import { plateText, type WonPlate } from '../won.js';
 
 export interface Embed {
   title: string;
@@ -204,7 +205,7 @@ export function chunkEmbeds(embeds: Embed[], budget = MESSAGE_CHAR_BUDGET): Embe
 }
 
 /** 📋 เลขที่เฝ้าอยู่ — ทุกเลขใน wishlist พร้อมว่าใครเพิ่ม และเกี่ยวกับตารางสัปดาห์นี้ยังไง */
-export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY, auction: AuctionIndex = auctionIndex(undefined, config.wishlist.auction ?? [])): Embed {
+export function wishlistEmbed(config: Config, owners: Record<string, string>, entries: ScheduleEntry[], today: string, numerology: Numerology = EMPTY_NUMEROLOGY, auction: AuctionIndex = auctionIndex(undefined, config.wishlist.auction ?? []), won: WonPlate[] = []): Embed {
   const w = config.wishlist;
   const statusOf = (n: number) => {
     const slot = entries.find((e) => n >= e.from && n <= e.to);
@@ -221,6 +222,13 @@ export function wishlistEmbed(config: Config, owners: Record<string, string>, en
     { name: `✅ จองออนไลน์ได้ (${wanted.length})`, value: numberLines.length ? fitField(numberLines, 'เลข') : '(ยังไม่มี · กด 🔢 เพื่อเพิ่ม)' },
   ];
   if (locked.length) fields.push(auctionField(locked.map((n) => ({ n, group: auction.get(n)! }))));
+  if (won.length) fields.push({
+    name: `🏆 จองได้แล้ว (${won.length})`,
+    value: fitField(won.map((w) => {
+      const left = daysBetween(today, w.registerBy);
+      return `\`${plateText(w)}\` จดทะเบียนภายใน ${formatThaiDateShort(w.registerBy)}${left >= 0 ? ` (อีก ${left} วัน)` : ' · เลยกำหนดแล้ว'}`;
+    }), 'เลข') + '\n-# จดแล้วกด 🏆 ใส่เลขในช่องล่างสุดเพื่อหยุดเตือน',
+  });
   if (w.patterns.length) fields.push({ name: `รูปแบบเลขที่เฝ้า (${w.patterns.length})`, value: w.patterns.map((p) => `• ${p.name}`).join('\n'), inline: true });
   if (w.digitSums.length) fields.push({ name: 'ผลรวมเลขที่เฝ้า', value: w.digitSums.join(', '), inline: true });
   const exclude = w.exclude ?? [];
@@ -292,12 +300,19 @@ export function dailyEmbed(info: DailyInfo): Embed {
   };
 }
 
-/** ⚠️ ใกล้หมดเขตจดทะเบียน — เตือนก่อนเปิดจองย้ายไปอยู่ช่อง "🔜 พรุ่งนี้" ของการ์ดประจำวันแล้ว (ADR-0007) */
-export function reminderEmbed(kind: 'deadline', e: ScheduleEntry, daysLeft: number): Embed {
+/**
+ * ⚠️ ใกล้หมดเขตจดทะเบียนเลขที่ "จองได้แล้ว" — มาจากรายการที่ผู้ใช้กด 🏆 บอกเอง ไม่ใช่จากตารางรายสัปดาห์
+ * (ของเดิมอิง schedule.entries ซึ่งแถวหายไปก่อนถึงกำหนดเสมอ จึงไม่เคยยิงเลย · ADR-0008)
+ */
+export function wonDeadlineEmbed(w: WonPlate, daysLeft: number): Embed {
+  const urgent = daysLeft <= 1;
   return {
-    title: `⚠️ อีก ${daysLeft} วัน หมดเขตจดทะเบียนเลขหมวด ${e.prefix}`,
-    description: `ต้องจดทะเบียนภายใน ${formatThaiDate(e.registerBy)} ไม่งั้นเลขที่จองได้จะหลุด`,
-    color: COLOR.warn,
+    title: `${urgent ? '🚨' : '⚠️'} ${daysLeft === 0 ? 'วันนี้วันสุดท้าย' : `อีก ${daysLeft} วัน`} หมดเขตจดทะเบียน ${plateText(w)}`,
+    description:
+      `ต้องนำรถไปจดทะเบียนภายใน **${formatThaiDate(w.registerBy)}**\n` +
+      'เลยกำหนดแล้ว **เลขที่จองได้จะหลุด** ต้องไปจองใหม่\n' +
+      '-# จดทะเบียนแล้วกด 🏆 แล้วใส่เลขในช่อง "จดทะเบียนแล้ว" เพื่อหยุดเตือน',
+    color: urgent ? 0xef4444 : COLOR.warn,
     footer: { text: FOOTER },
   };
 }
@@ -364,7 +379,8 @@ export function guideEmbeds(): Embed[] {
       color: COLOR.match,
       fields: [
         { name: '🔢 กรอกเลขที่อยากจอง', value: 'ฟอร์ม 4 ช่อง: **เพิ่ม** หลายเลขคั่นด้วย , หรือเว้นวรรค · **ไม่อยากได้** ตัดเลขออกจากทุกรูปแบบ (จองได้แล้ว / ไม่ชอบ) · **🔨 กดจองไม่ได้** เลขที่ขนส่งกันไว้ประมูล · **ลบ** ออกจากรายการ\nbot ตอบรายเลขว่าเปิดจองวันไหน ซ้ำไหม ช่วงนั้นผ่านไปแล้วไหม ใครเล็งไว้ก่อน และ 💡 ถ้ารูปแบบครอบอยู่แล้ว\n⚠️ ไม่ได้จองแทน — การจองต้องทำเองผ่าน ThaID' },
-        { name: '📋 เลขที่เฝ้าอยู่', value: 'รายการทุกเลขใน wishlist ตอนนี้ ใครเพิ่ม และจะเปิดจองวันไหน · แยก ✅ จองออนไลน์ได้ กับ 🔨 ต้องประมูล · ใช้ตรวจว่าลืมลบเลขไหนไหม' },
+        { name: '📋 เลขที่เฝ้าอยู่', value: 'รายการทุกเลขใน wishlist ตอนนี้ ใครเพิ่ม และจะเปิดจองวันไหน · แยก ✅ จองออนไลน์ได้ · 🔨 ต้องประมูล · 🏆 จองได้แล้ว' },
+        { name: '🏆 จองได้แล้ว', value: 'กดหลังจองเลขได้ในเว็บขนส่ง แล้วใส่เลข — bot จะ **เตือนก่อนหมดเขตจดทะเบียน** (ค่าเริ่มต้น 7 วัน และ 1 วันก่อน) เลยกำหนดแล้วเลขที่จองได้จะหลุด\nหมวดกับวันหมดเขตไม่ต้องกรอกถ้าเลขอยู่ในตารางสัปดาห์นี้ bot หาให้เอง · จดทะเบียนแล้วกดอีกครั้งแล้วใส่เลขในช่องล่างสุดเพื่อหยุดเตือน\n⚠️ bot ไม่ได้เช็คกับระบบขนส่ง — ข้อมูลนี้คุณเป็นคนบอก' },
         { name: '📤 แชร์เลข', value: 'ข้อความนี้ในรูปข้อความล้วนใน code block → ชี้เมาส์แล้วกดคัดลอก (มือถือกดค้าง) เอาไปส่งให้ครอบครัวช่วยเลือกได้' },
         { name: '🧹 ลบประวัติแชตเก่า', value: 'ลบข้อความเก่าของ bot ในช่องนี้ (สูงสุด 100 ข้อความล่าสุด) เก็บข้อความที่คุณกดไว้ · ไม่แตะข้อความของคนอื่น' },
         { name: '🌐 เข้าสู่เว็บไซต์', value: 'ลิงก์ไปหน้าจองของกรมขนส่ง reserve.dlt.go.th เปิด 10:00–16:00 น. ตามตาราง ต้องยืนยันตัวตน ThaID ก่อนจอง' },
@@ -372,7 +388,7 @@ export function guideEmbeds(): Embed[] {
     },
     {
       title: '🏠 คู่มือปุ่ม — landing panel',
-      description: 'แผงหลักอยู่ล่างสุดของช่องเสมอ บอกสถานะวันนี้ + wishlist + bot โดยไม่ต้องกด · หาไม่เจอพิมพ์ `/panel`\nแถวบน = ทำ (🔢 📋 🧹 🌐) · แถวล่าง = ดู (📅 🎯 🔄 📜 ❓)',
+      description: 'แผงหลักอยู่ล่างสุดของช่องเสมอ บอกสถานะวันนี้ + wishlist + bot โดยไม่ต้องกด · หาไม่เจอพิมพ์ `/panel`\nแถวบน = ทำ (🔢 📋 🏆 🧹 🌐) · แถวล่าง = ดู (📅 🎯 🔄 📜 ❓)',
       color: COLOR.info,
       fields: [
         { name: '📅 ตารางสัปดาห์นี้', value: '= `npm run schedule` · ตารางเปิดจองทั้ง 3 ประเภทรถ วันไหนหมวดอะไร ช่วงเลขเท่าไหร่ จดภายในวันไหน' },

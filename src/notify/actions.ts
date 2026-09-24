@@ -3,17 +3,21 @@
 import { DLT_RESERVE_PAGE } from '../schedule/fetch.js';
 import type { ScheduleEntry } from '../schedule/types.js';
 import type { StoredEvent, WishlistRows } from '../store.js';
+import { plateText, type WonChange } from '../won.js';
 import { daysBetween } from '../thai-date.js';
 import { formatThaiDate } from '../thai-date.js';
 
 export const BUTTON = {
   addNumber: 'add_number',
+  wonNumber: 'won_number',
   showWishlist: 'show_wishlist',
   share: 'share_text',
   showHistory: 'show_history',
   clearHistory: 'clear_history',
 } as const;
 export const MODAL = { addNumber: 'add_number_modal', field: 'number', removeField: 'remove', excludeField: 'exclude', auctionField: 'auction' } as const;
+/** ปุ่ม 🏆 — บอก bot ว่าจองเลขนี้ได้แล้ว เพื่อให้เตือนก่อนหมดเขตจดทะเบียน (ADR-0008) */
+export const WON_MODAL = { id: 'won_modal', number: 'won_number', deadline: 'won_deadline', prefix: 'won_prefix', remove: 'won_remove' } as const;
 
 /** ข้อความใน modal — Discord จำกัด title/label ≤ 45 ตัวอักษร · placeholder ≤ 100 (เกินแล้ว discord.js โยน "Invalid string length" ก่อนส่ง → ปุ่มขึ้น "ไม่ตอบสนอง") */
 export const MODAL_TEXT = {
@@ -26,6 +30,19 @@ export const MODAL_TEXT = {
   excludePlaceholder: 'เช่น 4444 หรือเลขที่จองได้แล้ว',
   auctionLabel: '🔨 กดจองไม่ได้ ขนส่งกันไว้ประมูล',
   auctionPlaceholder: 'เลขที่ลองกดแล้วระบบไม่ให้จอง · ใส่กลับด้วยช่องเพิ่ม',
+} as const;
+
+/** ข้อความใน modal ของปุ่ม 🏆 — ลิมิตเดียวกับ MODAL_TEXT (label ≤45 · placeholder ≤100) */
+export const WON_TEXT = {
+  title: '🏆 จองได้แล้ว — ให้เตือนก่อนหมดเขต',
+  numberLabel: 'เลขที่จองได้ (คั่นด้วย , หรือเว้นวรรค)',
+  numberPlaceholder: 'เช่น 5456',
+  deadlineLabel: 'วันหมดเขตจดทะเบียน (ไม่ใส่ = หาให้)',
+  deadlinePlaceholder: 'เช่น 26/10/2569 หรือ 2026-10-26 (ดูในใบจอง)',
+  prefixLabel: 'หมวดอักษร (ไม่ใส่ = หาจากตารางให้)',
+  prefixPlaceholder: 'เช่น 8ขช',
+  removeLabel: 'จดทะเบียนแล้ว/ยกเลิก — ใส่เลขที่เอาออก',
+  removePlaceholder: 'เช่น 5456 · ใส่แล้วหยุดเตือนเลขนั้น',
 } as const;
 export const DISCORD_LIMITS = { modalTitle: 45, inputLabel: 45, placeholder: 100 } as const;
 
@@ -69,6 +86,7 @@ export const BTN = {
   addNumber: { type: 2, style: 1, custom_id: BUTTON.addNumber, label: 'กรอกเลขที่อยากจอง', emoji: { name: '🔢' } },
   wishlist: { type: 2, style: 2, custom_id: BUTTON.showWishlist, label: 'เลขที่เฝ้าอยู่', emoji: { name: '📋' } },
   share: { type: 2, style: 2, custom_id: BUTTON.share, label: 'แชร์เลข', emoji: { name: '📤' } },
+  won: { type: 2, style: 3, custom_id: BUTTON.wonNumber, label: 'จองได้แล้ว', emoji: { name: '🏆' } },
   clear: { type: 2, style: 4, custom_id: BUTTON.clearHistory, label: 'ลบประวัติแชตเก่า', emoji: { name: '🧹' } },
   web: { type: 2, style: 5, url: DLT_RESERVE_PAGE, label: 'เข้าสู่เว็บไซต์', emoji: { name: '🌐' } },
   schedule: { type: 2, style: 2, custom_id: COMMAND.schedule, label: 'ตาราง', emoji: { name: '📅' } },
@@ -87,9 +105,14 @@ export const dailyRows = () => rowsOf(DAILY_BUTTONS);
 export const shareRow = () => ({ type: 1 as const, components: [BTN.share] });
 
 /** landing panel: แถว "ทำ" + แถว "ดู" */
-export const PANEL_ACTION_BUTTONS = [BTN.addNumber, BTN.wishlist, BTN.clear, BTN.web];
+export const PANEL_ACTION_BUTTONS = [BTN.addNumber, BTN.wishlist, BTN.won, BTN.clear, BTN.web];
 export const PANEL_VIEW_BUTTONS = [BTN.schedule, BTN.match, BTN.check, BTN.history, BTN.guide];
-export const panelRows = () => [...rowsOf(PANEL_ACTION_BUTTONS), ...rowsOf(PANEL_VIEW_BUTTONS)];
+/** Discord รับได้ 5 แถวต่อข้อความ — 10 ปุ่มแบ่งแถวละ 2 จะได้ 6 แถวแล้วโดนปฏิเสธ จึงถอยกลับเป็นกลุ่มละแถว */
+export const MAX_ROWS = 5;
+export const panelRows = () => {
+  const rows = [...rowsOf(PANEL_ACTION_BUTTONS), ...rowsOf(PANEL_VIEW_BUTTONS)];
+  return rows.length <= MAX_ROWS ? rows : [...rowsOf(PANEL_ACTION_BUTTONS, 5), ...rowsOf(PANEL_VIEW_BUTTONS, 5)];
+};
 /** @deprecated ชื่อเก่า — ตอนนี้แผงคือ panelRows() */
 export const commandRows = panelRows;
 
@@ -207,6 +230,27 @@ export function wishlistChangeText(c: WishlistChange, invalid: string[], owners:
   return `${lines.join('\n')}\n\n**📋 เลขที่เฝ้าอยู่ตอนนี้ (${c.total}):** ${current}${ex}${au}\n-# กรอกผิด → กด 🔢 อีกครั้งแล้วใส่เลขในช่องลบ · การจองต้องทำเองผ่าน ThaID`;
 }
 
+/** ข้อความสรุปหลังกดปุ่ม 🏆 — บอกให้ชัดว่าจะเตือนวันไหนบ้าง เพราะเลขหลุดถ้าลืมจด */
+export function wonChangeText(c: WonChange, invalid: string[], today: string, remindDays: number[]): string {
+  const lines: string[] = [];
+  for (const w of c.added) {
+    const left = daysBetween(today, w.registerBy);
+    const when = remindDays.filter((d) => d <= left).sort((a, b) => b - a);
+    lines.push(`🏆 **${plateText(w)}** บันทึกแล้ว · จดทะเบียนภายใน **${formatThaiDate(w.registerBy)}** (อีก ${left} วัน)` +
+      (when.length ? `\n   ↳ ⚠️ จะเตือนในห้องเมื่อเหลือ ${when.join(' และ ')} วัน` : '\n   ↳ ⚠️ ใกล้กำหนดมากแล้ว จะเตือนทุกวันที่ตรงเงื่อนไข'));
+  }
+  for (const w of c.replaced) lines.push(`♻️ **${plateText(w)}** มีอยู่แล้ว เขียนทับด้วยข้อมูลใหม่`);
+  for (const w of c.removed) lines.push(`✅ **${plateText(w)}** เอาออกจากรายการแล้ว หยุดเตือน`);
+  for (const n of c.notFound) lines.push(`❔ **${n}** ไม่มีในรายการที่จองได้`);
+  for (const n of c.needDate) lines.push(`❌ **${n}** ไม่อยู่ในตารางสัปดาห์นี้ · กด 🏆 อีกครั้งแล้วใส่**หมวด**กับ**วันหมดเขต**ในช่องด้านล่างด้วย`);
+  for (const t of invalid) lines.push(`❌ "${t}" ไม่ใช่เลขทะเบียน 1–9999`);
+  if (!lines.length) lines.push('ไม่มีอะไรเปลี่ยน');
+  const now = c.list.length
+    ? c.list.map((w) => `\`${plateText(w)}\` จดภายใน ${formatThaiDate(w.registerBy, false)}`).join('\n')
+    : '(ยังไม่มีเลขที่จองได้)';
+  return `${lines.join('\n')}\n\n**🏆 เลขที่จองได้ตอนนี้:**\n${now}\n-# ข้อมูลนี้ผู้ใช้เป็นคนบอก bot ไม่ได้เช็คกับระบบขนส่ง (ADR-0001)`;
+}
+
 const shortDate = (iso: string) => formatThaiDate(iso, false);
 
 /** แปลง key ใน state ให้คนอ่านรู้เรื่อง */
@@ -219,6 +263,7 @@ export function describeKey(key: string): string {
     case 't10': return `🚦 ปิง 10 นาทีก่อนเปิด ${rest[1]} (${shortDate(rest[0])})`;
     case 'schedule': return `📅 ตารางรอบใหม่ (${rest.join(':')})`;
     case 'stale': return '🗓️ ตารางหมดอายุ';
+    case 'won': return `⚠️ เตือนจดทะเบียน ${rest[0]} ${rest[1]} (เหลือ ${rest[3]} วัน)`;
     default: return key;
   }
 }
@@ -245,6 +290,7 @@ export function describeEvent(e: StoredEvent): string {
     case 'ping': return `🚦 ปิงก่อนเปิดจอง ${p.sent ?? 0} รายการ`;
     case 'check': return `🔄 ${who}เช็ค · ส่งใหม่ ${p.sent ?? 0}`;
     case 'panel': return '🏠 โพสต์แผงใหม่';
+    case 'won': return `🏆 ${who}${numList(p.added) ? `จองได้ ${numList(p.added)}` : ''}${numList(p.removed) ? `เอาออก ${numList(p.removed)}` : ''}`.trim();
     case 'daily': return p.cleared ? '🌙 ลบการ์ดประจำวัน (จบวัน)' : `📣 การ์ดประจำวัน ${p.date ?? ''} · เลขในฝัน ${p.mine ?? 0} · เสนอ ${p.suggested ?? 0}`;
     default: return e.kind;
   }

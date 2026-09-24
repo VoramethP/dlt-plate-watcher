@@ -2,7 +2,8 @@
 import { auctionIndex, loadAuctionRules, type AuctionIndex } from './auction.js';
 import type { Config } from './config.js';
 import { matchSchedule } from './match.js';
-import { chunkEmbeds, matchEmbed, openingSoonEmbed, reminderEmbed, scheduleEmbed, staleEmbed, type Embed, type Notifier } from './notify/discord.js';
+import { chunkEmbeds, matchEmbed, openingSoonEmbed, scheduleEmbed, staleEmbed, wonDeadlineEmbed, type Embed, type Notifier } from './notify/discord.js';
+import { loadWon, pending, wonDeadlineKey, type WonPlate } from './won.js';
 // matchEmbed ยังใช้กับปุ่ม 🎯 และ preview · ไม่ได้ยิงเข้าห้องอัตโนมัติแล้ว
 import { fetchSchedulePdf, type Fetcher } from './schedule/fetch.js';
 import { parseSchedulePdf } from './schedule/parse.js';
@@ -34,7 +35,6 @@ export async function loadSchedule(fileId: string, fetcher: Fetcher = fetch): Pr
   return { sourceFileId: fileId, version, fetchedAt: new Date().toISOString(), entries };
 }
 
-export const reminderKey = (kind: string, e: ScheduleEntry, d: number) => `${kind}:${e.openDate}:${e.prefix}:${e.from}:${d}`;
 
 /** ตารางหมดอายุ = ทุกวันเปิดจองผ่านไปแล้ว → ต้องไปเอา file id ใหม่จากหน้าขนส่ง */
 export function isStale(schedule: Schedule, today: string): boolean {
@@ -42,10 +42,9 @@ export function isStale(schedule: Schedule, today: string): boolean {
 }
 
 /** สิ่งที่ควรแจ้งวันนี้ โดยยังไม่ตัดของที่เคยแจ้งไปแล้ว */
-export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, auction?: AuctionIndex) {
+export function planNotifications(schedule: Schedule, config: Config, state: State, today: string, auction?: AuctionIndex, won: WonPlate[] = []) {
   const out: Array<{ key: string; embed: Embed }> = [];
   const stale = isStale(schedule, today);
-  const mine = schedule.entries.filter((e) => e.vehicleType === config.vehicleType);
 
   if (stale) {
     // ตารางเก่า: ไม่มีอะไรให้ match แต่กำหนดจดทะเบียนของรอบนี้ยังเดินอยู่ ต้องเตือนต่อ
@@ -58,10 +57,11 @@ export function planNotifications(schedule: Schedule, config: Config, state: Sta
     // ที่เหลือตรงนี้คือข้อความที่เกิดครั้งเดียวต่อสัปดาห์/ต่อรอบ ไม่ซ้ำกับการ์ดประจำวัน
   }
 
-  for (const e of mine) {
-    const untilDeadline = daysBetween(today, e.registerBy);
-    if (config.reminders.daysBeforeRegisterDeadline.includes(untilDeadline)) {
-      out.push({ key: reminderKey('deadline', e, untilDeadline), embed: reminderEmbed('deadline', e, untilDeadline) });
+  // เตือนจดทะเบียนจากรายการที่ผู้ใช้กด 🏆 บอกเอง — อยู่นอก if(stale) เพราะกำหนดจดยังเดินอยู่ไม่ว่าตารางจะเป็นยังไง
+  for (const w of pending(won, today)) {
+    const left = daysBetween(today, w.registerBy);
+    if (config.reminders.daysBeforeRegisterDeadline.includes(left)) {
+      out.push({ key: wonDeadlineKey(w, left), embed: wonDeadlineEmbed(w, left) });
     }
   }
   return out;
@@ -94,7 +94,7 @@ export async function runCheck(config: Config, env: Env) {
   const state = await env.store.loadState();
 
   const auction = auctionIndex(await loadAuctionRules(), config.wishlist.auction);
-  const planned = planNotifications(schedule, config, state, today, auction);
+  const planned = planNotifications(schedule, config, state, today, auction, await loadWon(env.store));
   const sent = await sendFresh(planned, state, env);
   log(`ตารางเวอร์ชัน ${schedule.version}: ${schedule.entries.length} แถว · ควรแจ้ง ${planned.length} · ส่งใหม่ ${sent.length}`);
 

@@ -13,18 +13,27 @@ describe('ปุ่มใต้การ์ดแจ้งเตือน', () =
 });
 
 describe('landing panel: แถวทำ + แถวดู', () => {
-  it('ค่าเริ่มต้น 2 แถว: ทำ 4 ปุ่ม · ดู 5 ปุ่ม (ไม่เกิน 5 ต่อแถว)', () => {
+  it('ค่าเริ่มต้น 2 แถว: ทำ 5 ปุ่ม · ดู 5 ปุ่ม (ไม่เกิน 5 ต่อแถว)', () => {
     delete process.env.DISCORD_BUTTONS_PER_ROW;
     const rows = panelRows();
     expect(rows.map((r) => r.components.map((c) => c.label))).toEqual([
-      ['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์'],
+      ['กรอกเลขที่อยากจอง', 'เลขที่เฝ้าอยู่', 'จองได้แล้ว', 'ลบประวัติแชตเก่า', 'เข้าสู่เว็บไซต์'],
       ['ตาราง', 'เลขในฝัน', 'เช็คตอนนี้', 'ประวัติ', 'คู่มือ'],
     ]);
     expect(rows.every((r) => r.type === 1 && r.components.length <= 5)).toBe(true);
   });
-  it('DISCORD_BUTTONS_PER_ROW=2 → แบ่งแถวละ 2 ทั้งสองกลุ่ม', () => {
+  it('DISCORD_BUTTONS_PER_ROW=2 → 10 ปุ่มจะได้ 6 แถว เกินลิมิต 5 ของ Discord → ถอยกลับกลุ่มละแถว', () => {
     process.env.DISCORD_BUTTONS_PER_ROW = '2';
-    expect(panelRows().map((r) => r.components.length)).toEqual([2, 2, 2, 2, 1]);
+    expect(panelRows().map((r) => r.components.length)).toEqual([5, 5]);
+    delete process.env.DISCORD_BUTTONS_PER_ROW;
+  });
+  it('ทุกกรณีต้องไม่เกิน 5 แถว และ 5 ปุ่มต่อแถว', () => {
+    for (const per of ['1', '2', '3', '4', '5']) {
+      process.env.DISCORD_BUTTONS_PER_ROW = per;
+      const rows = panelRows();
+      expect(rows.length).toBeLessThanOrEqual(5);
+      for (const r of rows) expect(r.components.length).toBeLessThanOrEqual(5);
+    }
     delete process.env.DISCORD_BUTTONS_PER_ROW;
   });
   it('ค่าเพี้ยน → กลับไปค่าเริ่มต้น', () => {

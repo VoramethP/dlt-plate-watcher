@@ -9,8 +9,8 @@ export interface Actor { id: string; name: string }
 export const CRON_ACTOR: Actor = { id: 'cron', name: 'cron' };
 
 /** ชนิดเหตุการณ์ใน transaction log · ปุ่ม 📜 แสดงเฉพาะ HISTORY_KINDS */
-export type EventKind = 'wishlist' | 'notify' | 'check' | 'ping' | 'panel' | 'clear' | 'daily';
-export const HISTORY_KINDS: EventKind[] = ['notify', 'wishlist', 'clear', 'ping', 'daily'];
+export type EventKind = 'wishlist' | 'notify' | 'check' | 'ping' | 'panel' | 'clear' | 'daily' | 'won';
+export const HISTORY_KINDS: EventKind[] = ['notify', 'wishlist', 'clear', 'ping', 'daily', 'won'];
 
 export interface EventInput { kind: EventKind; actor?: Actor; payload?: Record<string, unknown> }
 export interface StoredEvent extends EventInput { at: string }
