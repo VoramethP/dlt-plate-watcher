@@ -34,18 +34,18 @@ cron ทั้งหมดอยู่บน cron-job.org (09:30 daily · 09:50 
 
 ## กับดักที่เคยเจอ
 
-- **Vercel Hobby cron: วันละครั้งต่อ job, คลาด ±59 นาที** → เวลาที่ต้องตรงอยู่บน cron-job.org ทั้งหมด (09:30 daily · 09:50 ping · 23:50 daily-clear)
+- **Vercel Hobby cron คลาด ±59 นาที** → เวลาที่ต้องตรงอยู่บน cron-job.org ทั้งหมด
 - **embed field ต้องนับตัวอักษรจริง ไม่ใช่จำนวนบรรทัด** — 📋 พังบน Discord จริงเพราะเลขศาสตร์ทำให้เกิน 1024 (`fitField`)
-- **ข้อความเดียว: ทุก embed รวมกันห้ามเกิน 6000 ตัวอักษร** (ไม่ใช่แค่ 10 ใบ) — ตารางรอบใหม่ 5 วัน = 6230 → 400 · แบ่งด้วย `chunkEmbeds` · ephemeral ที่ยาวต่อด้วย `createFollowup`
+- **ข้อความเดียว: ทุก embed รวมกันห้ามเกิน 6000 ตัวอักษร** (ไม่ใช่แค่ 10 ใบ) → `chunkEmbeds` · ephemeral ยาวต่อด้วย `createFollowup`
 - **error ที่ส่งกลับในช่องห้ามมี path `/webhooks/<app>/<token>`** — เคยรั่ว token ของ interaction (`redactPath`)
-- **id ของ Discord 19 หลัก ห้ามผ่าน number** — `jsonb` โดน parse สองรอบ (postgres-js + drizzle) ทำให้ `getMeta` คืน id เพี้ยน ลบข้อความผิดใบ → อ่านด้วย `v #>> '{}'`
+- **id ของ Discord 19 หลัก ห้ามผ่าน number** — `jsonb` parse สองรอบ (postgres-js + drizzle) → `getMeta` คืน id เพี้ยน ลบผิดใบ · อ่านด้วย `v #>> '{}'`
 - **ลบข้อความถี่ ๆ โดน 429** → `discordRest` รอ `retry_after` ลองใหม่ 1 ครั้ง · ลบไม่ผ่านห้ามตอบว่าสำเร็จ
 - **pooler ไม่รองรับ prepared statements** → `postgres(url, { prepare: false })` · migrate ใช้ตัว direct
 - **scratchpad ไม่มี package.json/node_modules** → สคริปต์ที่ใช้ package ต้องอยู่ใน `scripts/`
 - **stale ต้องไม่ตัด deadline reminder** · **ไฟล์ .json ท้ายรีโปต้องอยู่ใน `vercel.json › includeFiles`** · **modal label ≤45 ตัวอักษร ไม่งั้น "ไม่ตอบสนอง"**
 - **webhook เคยหลุดเข้า `.env.example`** → เทส repo-hygiene · stage by name
-- **"เลขสวย" ที่ผู้ใช้ตั้ง pattern = ชุดเดียวกับที่ขนส่งกันไว้ประมูล** — เลขตอง/คู่สลับทั้งกลุ่มจองออนไลน์ไม่ได้ · การ์ดบางลงคือถูกแล้ว
-- **ปุ่มบนแผงครบ 10 แล้ว** — Discord รับ 5 แถว/ข้อความ · `panelRows()` ถอยกลับกลุ่มละแถวถ้าเกิน (อย่าเพิ่มปุ่มที่ 11 แบบไม่คิด)
+- **"เลขสวย" ที่ตั้ง pattern = ชุดเดียวกับที่ขนส่งกันไว้ประมูล** — เลขตอง/คู่สลับจองไม่ได้ทั้งกลุ่ม · การ์ดบางลงคือถูกแล้ว
+- **ปุ่มบนแผงครบ 10** — Discord รับ 5 แถว/ข้อความ · `panelRows()` ถอยกลับกลุ่มละแถวถ้าเกิน
 - **แก้ไฟล์ replace ทีละบล็อก** · python heredoc มีไทยใส่ `# -*- coding: utf-8 -*-`
 
 ---
